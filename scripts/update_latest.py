@@ -24,7 +24,19 @@ if os.environ.get("FORCE") != "true" and f'watch?v={vid}"' in page.split('id="la
     print("Already showing the newest video."); sys.exit(0)
 
 def ai_copy(title):
-    """Ask GitHub Models for a punny headline and joke line; None if unavailable."""
+    """Use the headline and joke the workflow's AI step wrote; None if unavailable."""
+    resp = os.environ.get("AI_RESPONSE", "")
+    try:
+        out = json.loads(resp[resp.find("{"):resp.rfind("}") + 1])
+        h, j = out["headline"].strip(), out["joke"].strip()
+        if h and j and len(h) <= 90 and len(j) <= 90:
+            return h, j
+    except Exception:
+        if os.environ.get("FORCE") == "true":
+            open("ai-debug.log", "w").write("AI step reply: " + resp[:400])
+    return None
+
+def _old_ai_copy(title):
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
         return None

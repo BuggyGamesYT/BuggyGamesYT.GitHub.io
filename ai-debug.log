@@ -1,2 +1,0 @@
-https://models.github.ai/inference/chat/completions: Unexpected reply: OK
- | https://models.inference.ai.azure.com/chat/completions: <urlopen error [Errno -2] Name or service not known>

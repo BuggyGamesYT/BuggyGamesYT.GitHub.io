@@ -23,10 +23,29 @@ jobs:
         with:
           python-version: "3.12"
       - run: python scripts/update_stats.py
+      - name: Read newest video title
+        id: feed
+        run: |
+          T=$(curl -s "https://www.youtube.com/feeds/videos.xml?channel_id=UCbQEjz-XWsJdWfzIdTqOc5Q" | python3 -c "import sys,re,html;m=re.findall(r'<title>([^<]+)</title>',sys.stdin.read());print(html.unescape(m[1]) if len(m)>1 else '')")
+          echo "title=$T" >> "$GITHUB_OUTPUT"
+      - name: Write headline and joke with AI
+        id: ai
+        continue-on-error: true
+        uses: actions/ai-inference@v1
+        with:
+          model: openai/gpt-4o-mini
+          prompt: |
+            You write copy for Buggy, a YouTuber who posts short clips of video game bugs and glitches.
+            His newest video is titled: "${{ steps.feed.outputs.title }}".
+            Write two things in his playful, deadpan gamer voice:
+            1. headline: starts with "Fresh out of the void: " then a short witty summary of the video, max 60 characters total, ending with a period.
+            2. joke: one short funny line about the bug, max 60 characters, like "The floor had one job."
+            Family friendly, no hashtags, no emojis. Reply with JSON only: {"headline": "...", "joke": "..."}
       - run: python scripts/update_latest.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           FORCE: ${{ inputs.force }}
+          AI_RESPONSE: ${{ steps.ai.outputs.response }}
       - name: Commit if changed
         run: |
           if ! git diff --quiet index.html || [ -f ai-debug.log ]; then
