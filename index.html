@@ -78,6 +78,26 @@
         z-index: -1;
         transition: opacity var(--dur-quick) var(--ease-out);
       }
+      /* Tighter glows, and room between neighbours so no two rings or glows touch. */
+      .x-rgb:not(.btn)::after {
+        inset: -8px;
+        padding: 8px;
+        border-radius: calc(var(--x-r) + 8px);
+        filter: blur(5px);
+      }
+      .btn.x-rgb::before {
+        inset: -5px;
+        padding: 5px;
+        border-radius: calc(var(--x-r) + 5px);
+        filter: blur(3px);
+      }
+      .links:has(> .btn.x-rgb) { gap: 18px 20px; }
+      .cards:has(> .x-rgb) { gap: 32px; }
+      .cards > .x-rgb > .links { margin-top: 20px; }
+      @media (max-width: 599px) {
+        .links:has(> .btn.x-rgb) { gap: 18px; }
+        .cards:has(> .x-rgb) { gap: 28px; }
+      }
       .x-rgb:not(.btn):hover::after,
       .x-rgb:not(.btn):focus-within::after,
       .btn.x-rgb:hover::before,
