@@ -13,7 +13,7 @@ subs = re.search(r'"subscriberCountText":"([0-9.,KMB]+) subscribers?"', html)
 vids = re.search(r'"videoCountText":"([0-9.,KMB]+) videos?"', html)
 if not subs or not vids:
     print("Could not read counts from YouTube; leaving page unchanged.")
-    sys.exit(0)
+    sys.exit(1)
 subs, vids = subs.group(1), vids.group(1)
 print(f"Videos: {vids}  Subscribers: {subs}")
 
