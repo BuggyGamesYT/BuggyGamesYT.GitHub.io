@@ -46,7 +46,13 @@ def ai_copy(title):
         if h and j and len(h) <= 90 and len(j) <= 90:
             return h, j
     except Exception as e:
-        print("AI copy failed:", e)
+        msg = str(e)
+        if hasattr(e, "read"):
+            try: msg += " " + e.read().decode()[:500]
+            except Exception: pass
+        print("AI copy failed:", msg)
+        if os.environ.get("FORCE") == "true":
+            open("ai-debug.log", "w").write(msg)
     return None
 
 copy = ai_copy(title)
