@@ -40,8 +40,15 @@ def ai_copy(title):
     r = urllib.request.Request("https://models.github.ai/inference/chat/completions", data=body, headers={
         "Authorization": f"Bearer {token}", "Content-Type": "application/json", "Accept": "application/json"})
     try:
-        out = json.loads(urllib.request.urlopen(r, timeout=60).read())["choices"][0]["message"]["content"]
-        out = json.loads(out[out.find("{"):out.rfind("}") + 1])
+        raw = urllib.request.urlopen(r, timeout=60).read().decode("utf-8", "ignore")
+        try:
+            out = json.loads(raw)["choices"][0]["message"]["content"]
+        except Exception:
+            raise ValueError("Unexpected reply: " + raw[:400])
+        try:
+            out = json.loads(out[out.find("{"):out.rfind("}") + 1])
+        except Exception:
+            raise ValueError("Model text: " + out[:400])
         h, j = out["headline"].strip(), out["joke"].strip()
         if h and j and len(h) <= 90 and len(j) <= 90:
             return h, j
