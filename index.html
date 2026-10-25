@@ -1,7 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8" />
+    <script>
+      try { var t = localStorage.getItem("hark-theme"); if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Buggy Games YT</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -13,15 +16,129 @@
     <link rel="stylesheet" href="hark.css" />
     <link rel="stylesheet" href="hark-hero.css" />
     <style>
-      .x-avatar {
+      .x-avatar-ring {
         display: block;
         width: 64px;
         height: 64px;
+        padding: 2px;
         border-radius: var(--r-pill);
-        object-fit: cover;
-        border: 2px solid var(--fill-primary-on);
         box-shadow: var(--hark-shadow);
         margin-bottom: 12px;
+      }
+      .x-avatar {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border-radius: var(--r-pill);
+        object-fit: cover;
+      }
+      /* RGB rainbow ring: a spinning conic gradient. Without @property the angle can't
+         interpolate, so the ring simply stays still (0deg and 360deg look the same). */
+      @property --x-angle {
+        syntax: "<angle>";
+        inherits: false;
+        initial-value: 0deg;
+      }
+      @keyframes x-rgb-spin {
+        to { --x-angle: 360deg; }
+      }
+      .x-rgb, .btn.x-rgb {
+        --x-rgb: conic-gradient(from var(--x-angle, 0deg), #ff0040, #ff8a00, #ffe600, #39ff88, #00e5ff, #3d5afe, #b026ff, #ff0040);
+        --x-r: var(--r-m);
+        position: relative;
+        isolation: isolate;
+      }
+      /* Ring: a pseudo-element masked down to its 2px padding. */
+      .x-rgb::before,
+      .x-rgb:not(.btn)::after,
+      .btn.x-rgb::before {
+        content: "";
+        position: absolute;
+        pointer-events: none;
+        background: var(--x-rgb);
+        animation: x-rgb-spin 4s linear infinite;
+        -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+      }
+      .x-rgb::before {
+        inset: 0;
+        padding: 2px;
+        border-radius: var(--x-r);
+        z-index: 1;
+      }
+      /* Glow: blurred, then masked so it only shows outside the element. */
+      .x-rgb:not(.btn)::after,
+      .btn.x-rgb::before {
+        inset: -10px;
+        padding: 10px;
+        border-radius: calc(var(--x-r) + 10px);
+        filter: blur(7px);
+        opacity: 0.35;
+        z-index: -1;
+        transition: opacity var(--dur-quick) var(--ease-out);
+      }
+      .x-rgb:not(.btn):hover::after,
+      .x-rgb:not(.btn):focus-within::after,
+      .btn.x-rgb:hover::before,
+      .btn.x-rgb:focus-visible::before { opacity: 0.6; }
+      /* Buttons keep ::after for the library's arrow, so their 2px ring is the
+         padding-box/border-box trick; padding shrinks by 1px to keep the size. */
+      .btn.x-rgb {
+        --x-r: var(--r-s);
+        border: 2px solid transparent;
+        padding: 4px 11px;
+        background:
+          linear-gradient(var(--fill-primary-on), var(--fill-primary-on)) padding-box,
+          var(--x-rgb) border-box;
+        animation: x-rgb-spin 4s linear infinite;
+      }
+      @media (pointer: coarse), (max-width: 599px) { .btn.x-rgb { padding-inline: 13px; } }
+      .x-avatar-ring.x-rgb { --x-r: var(--r-pill); }
+      .x-avatar-ring.x-rgb::before { z-index: 1; }
+      @media (prefers-reduced-motion: reduce) {
+        .x-rgb::before, .x-rgb:not(.btn)::after, .btn.x-rgb, .btn.x-rgb::before { animation: none; }
+      }
+      /* Glitch bursts: a full-viewport overlay above the page, never catching taps. */
+      .x-glitch {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 2147483000;
+        pointer-events: none;
+      }
+      /* Hero pixel particles: over the photo, under the hero's dark overlay and copy. */
+      .x-hero-px {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -2;
+        pointer-events: none;
+      }
+      /* Rainbow RGB name: one seamless color cycle per 300% tile, slid one tile per loop. */
+      .x-rainbow {
+        background-image: linear-gradient(90deg, #ff0040, #ff8a00, #ffe600, #39ff88, #00e5ff, #3d5afe, #b026ff, #ff0040);
+        background-size: 300% 100%;
+        background-repeat: repeat-x;
+        background-position: 0% 50%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        /* Real color stays white (fallback and contrast); the fill is made transparent to show the gradient. */
+        color: #fff;
+        -webkit-text-fill-color: transparent;
+        filter: drop-shadow(0 0 6px rgba(176, 38, 255, 0.45)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+        animation: x-rainbow-slide 4s linear infinite;
+      }
+      @keyframes x-rainbow-slide {
+        from { background-position: 0% 50%; }
+        to { background-position: -150% 50%; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .x-rainbow { animation: none; }
+        .x-glitch { display: none; }
+        .x-hero-px { display: none; }
       }
     </style>
   </head>
@@ -31,10 +148,11 @@
       <main class="main">
         <section class="hero">
           <img class="hero__img" src="hero.png" alt="A glitchy character falling through a broken floor" />
+          <canvas class="x-hero-px" aria-hidden="true"></canvas>
           <div class="hero__copy">
-            <img class="x-avatar" src="avatar.jpg" alt="Buggy Games YT logo, a glitchy B" />
-            <p class="hero__eyebrow">Buggy Games YT</p>
-            <h1>Hey, I'm Buggy.</h1>
+            <span class="x-avatar-ring x-rgb"><img class="x-avatar" src="avatar.jpg" alt="Buggy Games YT logo, a glitchy B" /></span>
+            <p class="hero__eyebrow"><span class="x-rainbow">Buggy Games YT</span></p>
+            <h1><span class="x-rainbow">Hey, I'm Buggy.</span></h1>
             <p class="hero__sub">
               Short clips of bugs and glitches in video games, plus live streams, tutorials, and music playlists.
             </p>
@@ -46,9 +164,9 @@
               <strong>Hit subscribe.</strong> Every new sub puts a smile on my face.
             </p>
             <div class="links">
-              <a class="btn" href="https://www.youtube.com/@BuggyGamesYT?sub_confirmation=1" target="_blank" rel="noopener">Subscribe on YouTube</a>
-              <a class="btn" href="https://www.youtube.com/@BuggyGamesYT" target="_blank" rel="noopener">Visit channel</a>
-              <a class="btn" href="https://linktr.ee/buggygamesyt" target="_blank" rel="noopener">All my links (Linktree)</a>
+              <a class="btn x-rgb" href="https://www.youtube.com/@BuggyGamesYT?sub_confirmation=1" target="_blank" rel="noopener">Subscribe on YouTube</a>
+              <a class="btn x-rgb" href="https://www.youtube.com/@BuggyGamesYT" target="_blank" rel="noopener">Visit channel</a>
+              <a class="btn x-rgb" href="https://linktr.ee/buggygamesyt" target="_blank" rel="noopener">All my links (Linktree)</a>
             </div>
           </aside>
         </section>
@@ -83,20 +201,20 @@
             <h2>The clips where the game broke the hardest.</h2>
           </div>
           <div class="cards">
-            <div>
+            <div class="x-rgb">
               <figure class="cards__media"><img src="thumb_1xaVnfa-Dr4.jpg" alt="Thumbnail for Got Absolutely Obliterated" /></figure>
               <h3>Got Absolutely Obliterated</h3>
-              <div class="links"><a class="btn" href="https://www.youtube.com/watch?v=1xaVnfa-Dr4" target="_blank" rel="noopener">Watch</a></div>
+              <div class="links"><a class="btn x-rgb" href="https://www.youtube.com/watch?v=1xaVnfa-Dr4" target="_blank" rel="noopener">Watch</a></div>
             </div>
-            <div>
+            <div class="x-rgb">
               <figure class="cards__media"><img src="thumb_cwFpmL1ypTI.jpg" alt="Thumbnail for Double load" /></figure>
               <h3>Double load</h3>
-              <div class="links"><a class="btn" href="https://www.youtube.com/watch?v=cwFpmL1ypTI" target="_blank" rel="noopener">Watch</a></div>
+              <div class="links"><a class="btn x-rgb" href="https://www.youtube.com/watch?v=cwFpmL1ypTI" target="_blank" rel="noopener">Watch</a></div>
             </div>
-            <div>
+            <div class="x-rgb">
               <figure class="cards__media"><img src="thumb_PF2POp4wH0I.jpg" alt="Thumbnail for CoD Vanguard Open Beta gameplay" /></figure>
               <h3>How gameplay was when CoD Vanguard launched it's Open Beta a year ago</h3>
-              <div class="links"><a class="btn" href="https://www.youtube.com/watch?v=PF2POp4wH0I" target="_blank" rel="noopener">Watch</a></div>
+              <div class="links"><a class="btn x-rgb" href="https://www.youtube.com/watch?v=PF2POp4wH0I" target="_blank" rel="noopener">Watch</a></div>
             </div>
           </div>
         </section>
@@ -116,7 +234,7 @@
               <p class="callout__lead">
                 <strong>Falling through the floor playing Nazi Zombies Portable on PS Vita.</strong> The floor had one job.
               </p>
-              <a class="btn" href="https://www.youtube.com/watch?v=VeejINb2Yes" target="_blank" rel="noopener">Watch now</a>
+              <a class="btn x-rgb" href="https://www.youtube.com/watch?v=VeejINb2Yes" target="_blank" rel="noopener">Watch now</a>
             </aside>
           </div>
         </section>
@@ -158,9 +276,9 @@
               And if you haven't yet, subscribe so you never miss a broken floor.
             </p>
             <div class="links">
-              <a class="btn" href="mailto:BuggysFanMail@gmail.com">Email Buggy</a>
-              <a class="btn" href="https://www.youtube.com/@BuggyGamesYT?sub_confirmation=1" target="_blank" rel="noopener">Subscribe on YouTube</a>
-              <a class="btn" href="https://linktr.ee/buggygamesyt" target="_blank" rel="noopener">All my links (Linktree)</a>
+              <a class="btn x-rgb" href="mailto:BuggysFanMail@gmail.com">Email Buggy</a>
+              <a class="btn x-rgb" href="https://www.youtube.com/@BuggyGamesYT?sub_confirmation=1" target="_blank" rel="noopener">Subscribe on YouTube</a>
+              <a class="btn x-rgb" href="https://linktr.ee/buggygamesyt" target="_blank" rel="noopener">All my links (Linktree)</a>
             </div>
           </aside>
         </section>
@@ -174,5 +292,310 @@
       </footer>
     </div>
     <script src="hark.js"></script>
+    <canvas class="x-glitch" aria-hidden="true"></canvas>
+    <script>
+      (function () {
+        var canvas = document.querySelector(".x-glitch");
+        if (!canvas || !canvas.getContext) return;
+        var motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+        var ctx = canvas.getContext("2d");
+        var COLORS = ["#5B2BFF", "#2F5BFF", "#3FA9FF", "#8A2BE2", "#C23BFF"];
+        var SPARK = ["#FFFFFF", "#CFF4FF", "#A8E8FF"];
+        var W = 0, H = 0, dpr = 1, raf = 0, visible = !document.hidden;
+        var items = [], zones = [], burst = null, nextBurst = 0, nextMini = 0, nextTick = 0, dirty = false;
+        var patterns = {};
+
+        function rand(a, b) { return a + Math.random() * (b - a); }
+        function ri(a, b) { return Math.floor(rand(a, b + 1)); }
+        function pick(a) { return a[(Math.random() * a.length) | 0]; }
+
+        // Fine diagonal hatch tiles, one per color.
+        COLORS.forEach(function (c) {
+          var t = document.createElement("canvas");
+          t.width = t.height = 6;
+          var g = t.getContext("2d");
+          g.strokeStyle = c;
+          g.lineWidth = 1.5;
+          g.beginPath();
+          g.moveTo(-1, 7); g.lineTo(7, -1);
+          g.moveTo(-1, 1); g.lineTo(1, -1);
+          g.moveTo(5, 7); g.lineTo(7, 5);
+          g.stroke();
+          patterns[c] = ctx.createPattern(t, "repeat");
+        });
+
+        function resize() {
+          dpr = Math.min(window.devicePixelRatio || 1, 2);
+          W = window.innerWidth; H = window.innerHeight;
+          canvas.width = Math.round(W * dpr);
+          canvas.height = Math.round(H * dpr);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          dirty = true;
+        }
+
+        function makeZones(n) {
+          var z = [];
+          for (var i = 0; i < n; i++) {
+            var w = rand(50, Math.min(180, W * 0.3));
+            z.push({ x: rand(0, Math.max(1, W - w)), w: w, y: rand(0, H * 0.4), h: rand(H * 0.4, H) });
+          }
+          return z;
+        }
+
+        function startBurst(t, mini) {
+          var dur = mini ? rand(250, 350) : rand(1200, 1800);
+          burst = { start: t, end: t + dur, mini: mini };
+          zones = makeZones(mini ? 1 : ri(1, 3));
+          items = [];
+        }
+
+        function spawn() {
+          var z = pick(zones), r = Math.random(), it;
+          var x = z.x + rand(0, z.w), y = z.y + rand(0, z.h);
+          // A few strays land anywhere on the page.
+          if (Math.random() < 0.15) { x = rand(0, W); y = rand(0, H); }
+          var c = pick(COLORS);
+          if (r < 0.34) {
+            it = { k: "bar", w: ri(2, 14), h: ri(6, 60) };
+          } else if (r < 0.58) {
+            it = { k: "stack", w: ri(2, 10), n: ri(3, 7), seg: ri(4, 10), gap: ri(1, 4) };
+          } else if (r < 0.7) {
+            it = { k: "hatch", w: ri(20, 60), h: ri(20, 60), solid: Math.random() < 0.4 };
+          } else if (r < 0.82) {
+            it = { k: "scan", len: ri(120, 400), rows: ri(1, 3), lh: ri(2, 3), dash: ri(4, 8) };
+            x = Math.min(x, W - 40) - rand(0, 80);
+            it.life = ri(2, 4);
+          } else {
+            it = { k: "spark", w: ri(2, 4), h: ri(2, 4) };
+            c = pick(SPARK);
+          }
+          it.x = x; it.y = y; it.c = c; it.dx = 0;
+          it.a = rand(0.4, 0.9);
+          it.glow = Math.random() < 0.35 ? rand(4, 12) : 0;
+          it.blend = Math.random() < 0.5 ? "screen" : "lighter";
+          if (!it.life) it.life = ri(2, 6);
+          it.on = true;
+          return it;
+        }
+
+        function tick(t) {
+          var p = (t - burst.start) / (burst.end - burst.start);
+          // Ramp in, hold, ramp out.
+          var env = Math.min(1, p * 5, (1 - p) * 4);
+          var target = Math.round((burst.mini ? 18 : 55) * env * Math.min(1.4, Math.max(0.6, W / 900)));
+          for (var i = items.length - 1; i >= 0; i--) {
+            var it = items[i];
+            if (--it.life <= 0) { items.splice(i, 1); continue; }
+            if (Math.random() < 0.3) it.dx = ri(-6, 6);
+            it.on = Math.random() > 0.15;
+          }
+          while (items.length < target) items.push(spawn());
+          // Occasionally a zone drifts sideways, for a choppier feel.
+          if (Math.random() < 0.2) { var z = pick(zones); z.x += rand(-20, 20); }
+        }
+
+        function draw() {
+          ctx.clearRect(0, 0, W, H);
+          // Faint violet haze behind each active zone.
+          ctx.globalCompositeOperation = "screen";
+          zones.forEach(function (z) {
+            var g = ctx.createLinearGradient(z.x - 30, 0, z.x + z.w + 30, 0);
+            g.addColorStop(0, "rgba(91,43,255,0)");
+            g.addColorStop(0.5, "rgba(91,43,255,0.08)");
+            g.addColorStop(1, "rgba(91,43,255,0)");
+            ctx.fillStyle = g;
+            ctx.fillRect(z.x - 30, z.y, z.w + 60, z.h);
+          });
+          for (var i = 0; i < items.length; i++) {
+            var it = items[i];
+            if (!it.on) continue;
+            var x = Math.round(it.x + it.dx), y = Math.round(it.y);
+            ctx.globalCompositeOperation = it.blend;
+            ctx.globalAlpha = it.a;
+            ctx.shadowBlur = it.glow;
+            ctx.shadowColor = it.c;
+            ctx.fillStyle = it.c;
+            if (it.k === "bar" || it.k === "spark") {
+              ctx.fillRect(x, y, it.w, it.h);
+            } else if (it.k === "stack") {
+              for (var s = 0; s < it.n; s++) {
+                if (Math.random() < 0.12) continue;
+                var off = Math.random() < 0.2 ? ri(-3, 3) : 0;
+                ctx.fillRect(x + off, y + s * (it.seg + it.gap), it.w, it.seg);
+              }
+            } else if (it.k === "hatch") {
+              ctx.shadowBlur = 0;
+              ctx.fillStyle = patterns[it.c];
+              ctx.fillRect(x, y, it.w, it.h);
+              if (it.solid) {
+                ctx.globalAlpha = it.a * 0.35;
+                ctx.fillStyle = it.c;
+                ctx.fillRect(x, y, it.w, Math.max(2, it.h * 0.2));
+              }
+            } else if (it.k === "scan") {
+              ctx.shadowBlur = 0;
+              for (var row = 0; row < it.rows; row++) {
+                var ry = y + row * (it.lh * 2 + 3);
+                for (var d = 0; d < it.len; d += it.dash + 2) {
+                  if (Math.random() < 0.1) continue;
+                  var dw = Math.min(it.dash, it.len - d);
+                  ctx.fillStyle = "#FF4D7A";
+                  ctx.fillRect(x + d - 1, ry, dw, it.lh);
+                  ctx.fillStyle = "#2F5BFF";
+                  ctx.fillRect(x + d + 1, ry + it.lh, dw, it.lh);
+                }
+              }
+            }
+          }
+          ctx.globalAlpha = 1;
+          ctx.shadowBlur = 0;
+          ctx.globalCompositeOperation = "source-over";
+        }
+
+        function schedule(t) {
+          nextBurst = t + rand(5000, 8000);
+          nextMini = Math.random() < 0.5 ? t + rand(1800, (nextBurst - t) - 1200) : 0;
+        }
+
+        function frame(t) {
+          raf = requestAnimationFrame(frame);
+          if (!nextBurst) schedule(t);
+          if (!burst) {
+            if (t >= nextBurst) { startBurst(t, false); schedule(t + 1500); }
+            else if (nextMini && t >= nextMini) { nextMini = 0; startBurst(t, true); }
+            else {
+              if (dirty) { ctx.clearRect(0, 0, W, H); dirty = false; }
+              return;
+            }
+          }
+          if (t >= burst.end) {
+            burst = null; items = []; zones = [];
+            ctx.clearRect(0, 0, W, H);
+            dirty = false;
+            return;
+          }
+          // Choppy updates at about 15 to 24 per second.
+          if (t < nextTick) return;
+          nextTick = t + 1000 / rand(15, 24);
+          tick(t);
+          draw();
+        }
+
+        function running() { return visible && !motion.matches; }
+        function update() {
+          if (running()) {
+            if (!raf) { nextBurst = 0; nextMini = 0; nextTick = 0; burst = null; raf = requestAnimationFrame(frame); }
+          } else {
+            if (raf) cancelAnimationFrame(raf);
+            raf = 0; burst = null; items = []; zones = [];
+            ctx.clearRect(0, 0, W, H);
+          }
+        }
+
+        resize();
+        window.addEventListener("resize", resize);
+        document.addEventListener("visibilitychange", function () { visible = !document.hidden; update(); });
+        if (motion.addEventListener) motion.addEventListener("change", update);
+        else if (motion.addListener) motion.addListener(update);
+        update();
+      })();
+    </script>
+    <script>
+      (function () {
+        var canvas = document.querySelector(".x-hero-px");
+        if (!canvas || !canvas.getContext) return;
+        var hero = canvas.parentNode;
+        var motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+        var ctx = canvas.getContext("2d");
+        var COLORS = ["#3D5AFE", "#FF2BD6", "#39FF88", "#FFFFFF"];
+        var W = 0, H = 0, dpr = 1, raf = 0, last = 0, parts = [];
+        var tabVisible = !document.hidden, onScreen = true;
+        var FRAME = 1000 / 60;
+
+        function rand(a, b) { return a + Math.random() * (b - a); }
+
+        function make(p) {
+          p = p || {};
+          var bar = Math.random() < 0.4;
+          var s = Math.round(rand(2, bar ? 4 : 6));
+          p.w = bar ? Math.round(rand(5, 10)) : s;
+          p.h = s;
+          p.x = rand(0, W);
+          p.y = rand(0, H);
+          p.vx = rand(-0.25, 0.25);
+          p.vy = rand(-0.45, -0.1);
+          p.c = COLORS[(Math.random() * COLORS.length) | 0];
+          p.a = rand(0.5, 0.9);
+          p.jit = 0;
+          p.dim = 0;
+          return p;
+        }
+
+        function resize() {
+          var r = hero.getBoundingClientRect();
+          W = Math.max(1, r.width);
+          H = Math.max(1, r.height);
+          dpr = Math.min(window.devicePixelRatio || 1, 2);
+          canvas.width = Math.round(W * dpr);
+          canvas.height = Math.round(H * dpr);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          var n = Math.round(Math.min(70, Math.max(40, (W * H) / 9000)));
+          while (parts.length < n) parts.push(make());
+          parts.length = n;
+          parts.forEach(function (p) {
+            if (p.x > W) p.x = rand(0, W);
+            if (p.y > H) p.y = rand(0, H);
+          });
+        }
+
+        function step(dt) {
+          ctx.clearRect(0, 0, W, H);
+          for (var i = 0; i < parts.length; i++) {
+            var p = parts[i];
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+            if (p.y < -p.h) { p.y = H + p.h; p.x = rand(0, W); }
+            if (p.x < -p.w) p.x = W + p.w;
+            else if (p.x > W + p.w) p.x = -p.w;
+            if (p.jit > 0) p.jit--;
+            else if (Math.random() < 0.004) p.jit = 1;
+            if (p.dim > 0) p.dim--;
+            else if (Math.random() < 0.006) p.dim = Math.round(rand(2, 6));
+            var dx = p.jit ? (Math.random() < 0.5 ? -1 : 1) * rand(2, 5) : 0;
+            ctx.globalAlpha = p.dim ? p.a * 0.3 : p.a;
+            ctx.fillStyle = p.c;
+            ctx.fillRect(Math.round(p.x + dx), Math.round(p.y), p.w, p.h);
+          }
+          ctx.globalAlpha = 1;
+        }
+
+        function loop(t) {
+          raf = requestAnimationFrame(loop);
+          if (!last) last = t;
+          var el = t - last;
+          if (el < FRAME - 1) return;
+          last = t;
+          step(Math.min(el, 100) / 16.667);
+        }
+
+        function sync() {
+          var run = tabVisible && onScreen && !motion.matches;
+          if (run && !raf) { last = 0; raf = requestAnimationFrame(loop); }
+          else if (!run && raf) { cancelAnimationFrame(raf); raf = 0; }
+          if (motion.matches) ctx.clearRect(0, 0, W, H);
+        }
+
+        resize();
+        window.addEventListener("resize", function () { resize(); });
+        if (window.ResizeObserver) new ResizeObserver(function () { resize(); }).observe(hero);
+        document.addEventListener("visibilitychange", function () { tabVisible = !document.hidden; sync(); });
+        if (window.IntersectionObserver) {
+          new IntersectionObserver(function (e) { onScreen = e[0].isIntersecting; sync(); }).observe(hero);
+        }
+        if (motion.addEventListener) motion.addEventListener("change", sync);
+        else if (motion.addListener) motion.addListener(sync);
+        sync();
+      })();
+    </script>
   </body>
 </html>
