@@ -35,11 +35,34 @@ def ai_copy(title):
         "2. joke: one short funny line about the bug, max 60 characters, like 'The floor had one job.'\n"
         "Keep it family friendly, no hashtags, no emojis. Reply with JSON only: {\"headline\": \"...\", \"joke\": \"...\"}"
     )
-    body = json.dumps({"model": "openai/gpt-4o-mini", "temperature": 0.9,
-                       "messages": [{"role": "user", "content": prompt}]}).encode()
-    r = urllib.request.Request("https://models.github.ai/inference/chat/completions", data=body, headers={
-        "Authorization": f"Bearer {token}", "Content-Type": "application/json", "Accept": "application/json"})
-    try:
+    msgs = [{"role": "user", "content": prompt}]
+    endpoints = [
+        ("https://models.github.ai/inference/chat/completions", "openai/gpt-4o-mini",
+         {"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}),
+        ("https://models.inference.ai.azure.com/chat/completions", "gpt-4o-mini", {"Accept": "application/json"}),
+    ]
+    errors = []
+    for url, model, extra in endpoints:
+        body = json.dumps({"model": model, "temperature": 0.9, "messages": msgs}).encode()
+        r = urllib.request.Request(url, data=body, method="POST", headers={
+            "Authorization": f"Bearer {token}", "Content-Type": "application/json", **extra})
+        try:
+            result = _ask(r)
+            if result:
+                return result
+        except Exception as e:
+            msg = f"{url}: {e}"
+            if hasattr(e, "read"):
+                try: msg += " " + e.read().decode()[:300]
+                except Exception: pass
+            errors.append(msg)
+    print("AI copy failed:", " | ".join(errors))
+    if os.environ.get("FORCE") == "true":
+        open("ai-debug.log", "w").write(" | ".join(errors))
+    return None
+
+def _ask(r):
+    if True:
         raw = urllib.request.urlopen(r, timeout=60).read().decode("utf-8", "ignore")
         try:
             out = json.loads(raw)["choices"][0]["message"]["content"]
@@ -52,14 +75,6 @@ def ai_copy(title):
         h, j = out["headline"].strip(), out["joke"].strip()
         if h and j and len(h) <= 90 and len(j) <= 90:
             return h, j
-    except Exception as e:
-        msg = str(e)
-        if hasattr(e, "read"):
-            try: msg += " " + e.read().decode()[:500]
-            except Exception: pass
-        print("AI copy failed:", msg)
-        if os.environ.get("FORCE") == "true":
-            open("ai-debug.log", "w").write(msg)
     return None
 
 copy = ai_copy(title)
