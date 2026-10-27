@@ -12,10 +12,47 @@
   canvas { display: block; width: 100vw; height: 100vh; height: 100dvh; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; cursor: crosshair; }
   #back { position: fixed; top: max(12px, env(safe-area-inset-top)); left: 12px; z-index: 2; font: bold 14px ui-monospace, Menlo, Consolas, monospace; color: #fff; text-decoration: none; padding: 8px 12px; border-radius: 10px; background: rgba(255,255,255,0.12); }
   #back.hide { display: none; }
+  .ui-btn { position: fixed; top: max(12px, env(safe-area-inset-top)); right: 12px; z-index: 2; font: bold 14px ui-monospace, Menlo, Consolas, monospace; color: #fff; border: 0; padding: 8px 12px; border-radius: 10px; background: rgba(255,255,255,0.12); cursor: pointer; }
+  .hide { display: none !important; }
+  .modal { position: fixed; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; background: rgba(5,3,12,0.72); padding: 16px; }
+  .card { width: min(360px, 100%); max-height: 90vh; overflow: auto; box-sizing: border-box; background: #140f26; border: 2px solid #6b4bff; border-radius: 16px; padding: 20px; color: #fff; font: 15px ui-monospace, Menlo, Consolas, monospace; text-align: center; box-shadow: 0 0 24px rgba(120,90,255,0.45); }
+  .card h2 { margin: 0 0 6px; font-size: 22px; letter-spacing: 2px; }
+  .card p { margin: 6px 0 14px; color: #cfc8ff; }
+  .card input { width: 7ch; font: bold 34px ui-monospace, Menlo, Consolas, monospace; text-align: center; text-transform: uppercase; letter-spacing: 6px; background: #0a0814; color: #fff; border: 2px solid #00e5ff; border-radius: 10px; padding: 6px 4px 6px 10px; outline: none; }
+  .card .row { display: flex; gap: 10px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+  .card button { font: bold 15px ui-monospace, Menlo, Consolas, monospace; border: 0; border-radius: 10px; padding: 10px 16px; cursor: pointer; background: #6b4bff; color: #fff; }
+  .card button.ghost { background: rgba(255,255,255,0.12); }
+  .card button:disabled { opacity: 0.5; cursor: default; }
+  .card ol { list-style: none; margin: 10px 0 0; padding: 0; text-align: left; }
+  .card li { display: flex; justify-content: space-between; padding: 7px 10px; border-radius: 8px; }
+  .card li:nth-child(odd) { background: rgba(255,255,255,0.05); }
+  .card li.me { background: rgba(0,229,255,0.18); }
+  .card li b { color: #ffd23f; width: 2.5ch; display: inline-block; }
+  .card .msg { min-height: 1.2em; font-size: 13px; color: #ff6b8b; margin-top: 10px; }
 </style>
 </head>
 <body>
 <a id="back" href="../games/index.html">← Games &amp; Apps</a>
+<button id="lbBtn" class="ui-btn">🏆 Top 10</button>
+<div id="nameModal" class="modal hide">
+  <div class="card">
+    <h2>NEW TOP SCORE!</h2>
+    <p id="nameScore"></p>
+    <input id="nameIn" maxlength="3" autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="text" placeholder="AAA" />
+    <p style="font-size:12px;margin:8px 0 0">3 letters or numbers</p>
+    <div class="row"><button id="nameSkip" class="ghost">Skip</button><button id="nameOk" disabled>Submit</button></div>
+    <div class="msg" id="nameMsg"></div>
+  </div>
+</div>
+<div id="lbModal" class="modal hide">
+  <div class="card">
+    <h2>🏆 TOP 10</h2>
+    <p>Bug Squash leaderboard</p>
+    <ol id="lbList"><li>Loading…</li></ol>
+    <div class="msg" id="lbMsg"></div>
+    <div class="row"><button id="lbClose">Close</button></div>
+  </div>
+</div>
 <canvas id="c"></canvas>
 <script>
 (() => {
@@ -143,6 +180,7 @@
   function gameOver() {
     state = OVER; overTimer = 0;
     if (score > best) { best = score; newBest = true; try { localStorage.setItem('bugsquash_best', best); } catch (e) {} }
+    onGameOverLB(score);
   }
 
   function onDown(x, y) {
@@ -158,6 +196,7 @@
   cv.addEventListener('pointerdown', e => { e.preventDefault(); const r = cv.getBoundingClientRect(); onDown(e.clientX - r.left, e.clientY - r.top); });
   cv.addEventListener('contextmenu', e => e.preventDefault());
   window.addEventListener('keydown', e => {
+    if (modalOpen()) { if (e.key === 'Escape') { closeBoard(); nameModal.classList.add('hide'); } return; }
     if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
       if (state === PLAYING) state = PAUSED;
       else if (e.key === 'Escape' && (state === PAUSED || state === OVER)) { state = MENU; bugs = []; }
@@ -215,6 +254,7 @@
     if (dt > 0.05) dt = 0.05;
     update(dt);
     backEl.classList.toggle('hide', state === PLAYING);
+    lbBtn.classList.toggle('hide', state === PLAYING || state === PAUSED);
 
     const w = W, h = H;
     c.save();
@@ -392,6 +432,95 @@
     }
   }
 
+
+  // ---------------- leaderboard ----------------
+  const LB_URL = 'https://keyvalue.immanuel.co/api/KeyVal/';
+  const LB_APP = '7qj6nvan', LB_KEY = 'bugsquash';
+  const nameModal = document.getElementById('nameModal'), nameIn = document.getElementById('nameIn');
+  const nameOk = document.getElementById('nameOk'), nameMsg = document.getElementById('nameMsg');
+  const lbModal = document.getElementById('lbModal'), lbList = document.getElementById('lbList'), lbMsg = document.getElementById('lbMsg');
+  const lbBtn = document.getElementById('lbBtn');
+  let board = [], myName = localStorage.getItem('bugsquash_name') || '', lastMine = null, pendingScore = 0, lbPoll = 0;
+  const modalOpen = () => !nameModal.classList.contains('hide') || !lbModal.classList.contains('hide');
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const parseBoard = txt => {
+    let v = txt; try { v = JSON.parse(txt); } catch (e) {}
+    if (typeof v !== 'string' || !v) return [];
+    return v.split('_').map(e => { const [n, sc] = e.split('-'); return { n, s: +sc }; })
+      .filter(e => /^[A-Z0-9]{3}$/.test(e.n) && e.s > 0 && e.s < 1e7);
+  };
+  const encodeBoard = b => b.map(e => e.n + '-' + e.s).join('_');
+  async function lbGet() {
+    for (let i = 0; i < 4; i++) {
+      try {
+        const r = await fetch(LB_URL + 'GetValue/' + LB_APP + '/' + LB_KEY, { cache: 'no-store' });
+        if (r.ok) { board = parseBoard(await r.text()); return true; }
+      } catch (e) {}
+      await sleep(700 + i * 500);
+    }
+    return false;
+  }
+  async function lbSubmit(name, sc) {
+    for (let i = 0; i < 5; i++) {
+      if (await lbGet()) {
+        const b = board.filter(e => e.n !== name);
+        const old = board.find(e => e.n === name);
+        b.push({ n: name, s: Math.max(sc, old ? old.s : 0) });
+        b.sort((a, c) => c.s - a.s);
+        const top = b.slice(0, 10);
+        try {
+          const r = await fetch(LB_URL + 'UpdateValue/' + LB_APP + '/' + LB_KEY + '/' + encodeBoard(top), { method: 'POST' });
+          if (r.ok) { board = top; return true; }
+        } catch (e) {}
+      }
+      await sleep(800 + i * 600);
+    }
+    return false;
+  }
+  const qualifies = sc => sc > 0 && (board.length < 10 || sc > board[board.length - 1].s);
+  function renderBoard() {
+    if (!board.length) { lbList.innerHTML = '<li>No scores yet. Be the first!</li>'; return; }
+    lbList.innerHTML = board.map((e, i) =>
+      `<li class="${e.n === lastMine ? 'me' : ''}"><span><b>${i + 1}</b> ${e.n}</span><span>${e.s}</span></li>`).join('');
+  }
+  async function openBoard() {
+    lbModal.classList.remove('hide'); lbMsg.textContent = '';
+    renderBoard();
+    const ok = await lbGet();
+    if (!ok) lbMsg.textContent = "Couldn't reach the leaderboard. Try again in a sec.";
+    renderBoard();
+    clearInterval(lbPoll);
+    lbPoll = setInterval(async () => { if (lbModal.classList.contains('hide')) return clearInterval(lbPoll); if (await lbGet()) renderBoard(); }, 15000);
+  }
+  function closeBoard() { lbModal.classList.add('hide'); clearInterval(lbPoll); }
+  lbBtn.addEventListener('click', openBoard);
+  document.getElementById('lbClose').addEventListener('click', closeBoard);
+  lbModal.addEventListener('pointerdown', e => { if (e.target === lbModal) closeBoard(); });
+  nameIn.addEventListener('input', () => {
+    nameIn.value = nameIn.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
+    nameOk.disabled = nameIn.value.length !== 3;
+  });
+  nameIn.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' && !nameOk.disabled) nameOk.click(); });
+  document.getElementById('nameSkip').addEventListener('click', () => { nameModal.classList.add('hide'); });
+  nameOk.addEventListener('click', async () => {
+    const name = nameIn.value;
+    nameOk.disabled = true; nameMsg.style.color = '#cfc8ff'; nameMsg.textContent = 'Saving…';
+    myName = name; try { localStorage.setItem('bugsquash_name', name); } catch (e) {}
+    const ok = await lbSubmit(name, pendingScore);
+    if (ok) { lastMine = name; nameModal.classList.add('hide'); openBoard(); }
+    else { nameMsg.style.color = '#ff6b8b'; nameMsg.textContent = "Couldn't save. Tap Submit to try again."; nameOk.disabled = false; }
+  });
+  async function onGameOverLB(sc) {
+    if (sc <= 0) return;
+    await lbGet();
+    if (state !== OVER || !qualifies(sc)) return;
+    pendingScore = sc;
+    document.getElementById('nameScore').textContent = 'You scored ' + sc + '. Put your name on the board:';
+    nameIn.value = myName; nameOk.disabled = myName.length !== 3; nameMsg.textContent = '';
+    nameModal.classList.remove('hide');
+    setTimeout(() => nameIn.focus(), 50);
+  }
+  lbGet();
   requestAnimationFrame(frame);
 })();
 </script>
