@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <script>
+      try { var t = localStorage.getItem("hark-theme"); if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Play games · Buggy Games YT</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400&display=swap"
+    />
+    <link rel="stylesheet" href="../hark.css" />
+    <link rel="stylesheet" href="../hark-hero.css" />
+    <style>
+      .x-avatar-ring {
+        display: block;
+        width: 64px;
+        height: 64px;
+        padding: 2px;
+        border-radius: var(--r-pill);
+        box-shadow: var(--hark-shadow);
+        margin-bottom: 12px;
+      }
+      .x-avatar {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border-radius: var(--r-pill);
+        object-fit: cover;
+      }
+      /* RGB rainbow ring: a spinning conic gradient. Without @property the angle can't
+         interpolate, so the ring simply stays still (0deg and 360deg look the same). */
+      @property --x-angle {
+        syntax: "<angle>";
+        inherits: false;
+        initial-value: 0deg;
+      }
+      @keyframes x-rgb-spin {
+        to { --x-angle: 360deg; }
+      }
+      .x-rgb, .btn.x-rgb {
+        --x-rgb: conic-gradient(from var(--x-angle, 0deg), #ff0040, #ff8a00, #ffe600, #39ff88, #00e5ff, #3d5afe, #b026ff, #ff0040);
+        --x-r: var(--r-m);
+        position: relative;
+        isolation: isolate;
+      }
+      /* Ring: a pseudo-element masked down to its 2px padding. */
+      .x-rgb::before,
+      .x-rgb:not(.btn)::after,
+      .btn.x-rgb::before {
+        content: "";
+        position: absolute;
+        pointer-events: none;
+        background: var(--x-rgb);
+        animation: x-rgb-spin 4s linear infinite;
+        -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+      }
+      .x-rgb::before {
+        inset: 0;
+        padding: 2px;
+        border-radius: var(--x-r);
+        z-index: 1;
+      }
+      /* Glow: blurred, then masked so it only shows outside the element. */
+      .x-rgb:not(.btn)::after,
+      .btn.x-rgb::before {
+        inset: -10px;
+        padding: 10px;
+        border-radius: calc(var(--x-r) + 10px);
+        filter: blur(7px);
+        opacity: 0.35;
+        z-index: -1;
+        transition: opacity var(--dur-quick) var(--ease-out);
+      }
+      /* Tighter glows, and room between neighbours so no two rings or glows touch. */
+      .x-rgb:not(.btn)::after {
+        inset: -8px;
+        padding: 8px;
+        border-radius: calc(var(--x-r) + 8px);
+        filter: blur(5px);
+      }
+      .btn.x-rgb::before {
+        inset: -5px;
+        padding: 5px;
+        border-radius: calc(var(--x-r) + 5px);
+        filter: blur(3px);
+      }
+      .links:has(> .btn.x-rgb) { gap: 18px 20px; }
+      .cards:has(> .x-rgb) { gap: 32px; }
+      .cards > .x-rgb > .links { margin-top: 20px; }
+      @media (max-width: 599px) {
+        .links:has(> .btn.x-rgb) { gap: 18px; }
+        .cards:has(> .x-rgb) { gap: 28px; }
+      }
+      .x-rgb:not(.btn):hover::after,
+      .x-rgb:not(.btn):focus-within::after,
+      .btn.x-rgb:hover::before,
+      .btn.x-rgb:focus-visible::before { opacity: 0.6; }
+      /* Buttons keep ::after for the library's arrow, so their 2px ring is the
+         padding-box/border-box trick; padding shrinks by 1px to keep the size. */
+      .btn.x-rgb {
+        --x-r: var(--r-s);
+        border: 2px solid transparent;
+        padding: 4px 11px;
+        background:
+          linear-gradient(var(--fill-primary-on), var(--fill-primary-on)) padding-box,
+          var(--x-rgb) border-box;
+        animation: x-rgb-spin 4s linear infinite;
+      }
+      @media (pointer: coarse), (max-width: 599px) { .btn.x-rgb { padding-inline: 13px; } }
+      .x-avatar-ring.x-rgb { --x-r: var(--r-pill); }
+      .x-avatar-ring.x-rgb::before { z-index: 1; }
+      @media (prefers-reduced-motion: reduce) {
+        .x-rgb::before, .x-rgb:not(.btn)::after, .btn.x-rgb, .btn.x-rgb::before { animation: none; }
+      }
+      /* Glitch bursts: a full-viewport overlay above the page, never catching taps. */
+      .x-glitch {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 2147483000;
+        pointer-events: none;
+      }
+      /* Hero pixel particles: over the photo, under the hero's dark overlay and copy. */
+      .x-hero-px {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -2;
+        pointer-events: none;
+      }
+      /* Rainbow RGB name: one seamless color cycle per 300% tile, slid one tile per loop. */
+      .x-rainbow {
+        background-image: linear-gradient(90deg, #ff0040, #ff8a00, #ffe600, #39ff88, #00e5ff, #3d5afe, #b026ff, #ff0040);
+        background-size: 300% 100%;
+        background-repeat: repeat-x;
+        background-position: 0% 50%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        /* Real color stays white (fallback and contrast); the fill is made transparent to show the gradient. */
+        color: #fff;
+        -webkit-text-fill-color: transparent;
+        filter: drop-shadow(0 0 6px rgba(176, 38, 255, 0.45)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+        animation: x-rainbow-slide 4s linear infinite;
+      }
+      @keyframes x-rainbow-slide {
+        from { background-position: 0% 50%; }
+        to { background-position: -150% 50%; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .x-rainbow { animation: none; }
+        .x-glitch { display: none; }
+        .x-hero-px { display: none; }
+      }
+    </style>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#1d1d1f">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <script>if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js')); }</script>
+  </head>
+  <body>
+    <div class="page" id="top">
+      <main class="main">
+        <div class="links" style="margin:24px 0 0"><a class="btn x-rgb" href="../">← Back to Buggy Games YT</a></div>
+        <section class="section" id="games" >
+          <div class="head">
+            <p class="head__eyebrow">Play games</p>
+            <h1>Games I made. Bugs included, on purpose this time.</h1>
+          </div>
+          <div class="cards">
+            <div class="x-rgb">
+              <figure class="cards__media"><img src="dealercraft.png" alt="DealerCraft icon" /></figure>
+              <h3>DealerCraft</h3>
+              <p class="muted">A blocky 3D farming game. Grow crops, craft food and sell it to villagers until you're a Tycoon. Plays on phone and PC.</p>
+              <div class="links"><a class="btn x-rgb" href="../dealercraft/">Play in browser</a><a class="btn x-rgb" href="../dealercraft/DealerCraft.apk">Android app</a></div>
+            </div>
+            <div class="x-rgb">
+              <figure class="cards__media"><img src="bugsquash.png" alt="Bug Squash icon" /></figure>
+              <h3>Bug Squash</h3>
+              <p class="muted">Tap the glitchy RGB bugs before they escape. Golden bugs pay big, red viruses cost you a life.</p>
+              <div class="links"><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/BugSquash/raw/main/release/BugSquash.apk">Android app</a><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/BugSquash" target="_blank" rel="noopener">Source</a></div>
+            </div>
+            <div class="x-rgb">
+              <figure class="cards__media"><img src="hellorgb.png" alt="Hello RGB icon" /></figure>
+              <h3>Hello RGB</h3>
+              <p class="muted">A tiny rainbow "Hello World" app with a speed slider. Where it all started.</p>
+              <div class="links"><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/HelloRGB/raw/main/release/HelloRGB.apk">Android app</a><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/HelloRGB" target="_blank" rel="noopener">Source</a></div>
+            </div>
+          </div>
+        </section>
+      </main>
+      <footer class="foot">
+        <p>Buggy Games YT · Stay positive and have a wonderful day.</p>
+        <a class="badge" href="https://hark.com/" target="_blank" rel="noopener"><span class="hark-mark"></span><span>built by hark</span></a>
+      </footer>
+    </div>
+    <script src="../hark.js"></script>
+  </body>
+</html>
