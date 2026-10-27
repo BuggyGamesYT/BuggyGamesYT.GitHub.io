@@ -434,8 +434,7 @@
 
 
   // ---------------- leaderboard ----------------
-  const LB_URL = 'https://keyvalue.immanuel.co/api/KeyVal/';
-  const LB_APP = '7qj6nvan', LB_KEY = 'bugsquash';
+  const LB_DB = 'https://bugsquash-leaderboard-default-rtdb.firebaseio.com/bugsquash/scores.json';
   const nameModal = document.getElementById('nameModal'), nameIn = document.getElementById('nameIn');
   const nameOk = document.getElementById('nameOk'), nameMsg = document.getElementById('nameMsg');
   const lbModal = document.getElementById('lbModal'), lbList = document.getElementById('lbList'), lbMsg = document.getElementById('lbMsg');
@@ -443,37 +442,31 @@
   let board = [], myName = localStorage.getItem('bugsquash_name') || '', lastMine = null, pendingScore = 0, lbPoll = 0;
   const modalOpen = () => !nameModal.classList.contains('hide') || !lbModal.classList.contains('hide');
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const parseBoard = txt => {
-    let v = txt; try { v = JSON.parse(txt); } catch (e) {}
-    if (typeof v !== 'string' || !v) return [];
-    return v.split('_').map(e => { const [n, sc] = e.split('-'); return { n, s: +sc }; })
-      .filter(e => /^[A-Z0-9]{3}$/.test(e.n) && e.s > 0 && e.s < 1e7);
+  const toBoard = obj => {
+    const best = {};
+    Object.values(obj || {}).forEach(e => {
+      if (e && /^[A-Z0-9]{3}$/.test(e.n) && e.s > 0 && e.s <= 100000 && (!best[e.n] || e.s > best[e.n])) best[e.n] = e.s;
+    });
+    return Object.keys(best).map(n => ({ n, s: best[n] })).sort((a, c) => c.s - a.s).slice(0, 10);
   };
-  const encodeBoard = b => b.map(e => e.n + '-' + e.s).join('_');
   async function lbGet() {
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 3; i++) {
       try {
-        const r = await fetch(LB_URL + 'GetValue/' + LB_APP + '/' + LB_KEY, { cache: 'no-store' });
-        if (r.ok) { board = parseBoard(await r.text()); return true; }
+        const r = await fetch(LB_DB + '?orderBy=%22s%22&limitToLast=200', { cache: 'no-store' });
+        if (r.ok) { board = toBoard(await r.json()); try { localStorage.setItem('bugsquash_board', JSON.stringify(board)); } catch (e) {} return true; }
       } catch (e) {}
-      await sleep(700 + i * 500);
+      await sleep(600 + i * 500);
     }
     return false;
   }
+  try { board = JSON.parse(localStorage.getItem('bugsquash_board') || '[]'); } catch (e) { board = []; }
   async function lbSubmit(name, sc) {
-    for (let i = 0; i < 5; i++) {
-      if (await lbGet()) {
-        const b = board.filter(e => e.n !== name);
-        const old = board.find(e => e.n === name);
-        b.push({ n: name, s: Math.max(sc, old ? old.s : 0) });
-        b.sort((a, c) => c.s - a.s);
-        const top = b.slice(0, 10);
-        try {
-          const r = await fetch(LB_URL + 'UpdateValue/' + LB_APP + '/' + LB_KEY + '/' + encodeBoard(top), { method: 'POST' });
-          if (r.ok) { board = top; return true; }
-        } catch (e) {}
-      }
-      await sleep(800 + i * 600);
+    for (let i = 0; i < 4; i++) {
+      try {
+        const r = await fetch(LB_DB, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ n: name, s: sc, t: Date.now() }) });
+        if (r.ok) { await lbGet(); return true; }
+      } catch (e) {}
+      await sleep(700 + i * 600);
     }
     return false;
   }
