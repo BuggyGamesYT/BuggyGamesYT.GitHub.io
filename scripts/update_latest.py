@@ -4,14 +4,22 @@ from datetime import datetime
 
 FEED = "https://www.youtube.com/feeds/videos.xml?channel_id=UCbQEjz-XWsJdWfzIdTqOc5Q"
 NS = {"a": "http://www.w3.org/2005/Atom", "yt": "http://www.youtube.com/xml/schemas/2015"}
+import time
 req = urllib.request.Request(FEED, headers={"User-Agent": "Mozilla/5.0"})
-try:
-    root = ET.fromstring(urllib.request.urlopen(req, timeout=30).read())
-except Exception as e:
-    print("Could not read feed:", e); sys.exit(1)
+root = None
+for attempt in range(5):
+    try:
+        root = ET.fromstring(urllib.request.urlopen(req, timeout=30).read())
+        break
+    except Exception as e:
+        print(f"Feed attempt {attempt + 1} failed:", e)
+        time.sleep(15 * (attempt + 1))
+if root is None:
+    # YouTube's feed 404s now and then; skip this run quietly instead of failing (stats still commit).
+    print("Could not read feed; skipping the latest upload this run."); sys.exit(0)
 entry = root.find("a:entry", NS)
 if entry is None:
-    print("Feed had no videos."); sys.exit(1)
+    print("Feed had no videos; skipping."); sys.exit(0)
 vid = entry.find("yt:videoId", NS).text
 title = entry.find("a:title", NS).text.strip()
 date = datetime.fromisoformat(entry.find("a:published", NS).text).strftime("%b %-d, %Y")
