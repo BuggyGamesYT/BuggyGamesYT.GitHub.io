@@ -1,5 +1,5 @@
 // Network-first so the stats the GitHub Action updates always show fresh; cache is the offline fallback.
-const CACHE = 'buggy-v1';
+const CACHE = 'buggy-v2';
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(['/', '/index.html', '/hark.css', '/hark.js', '/avatar.jpg', '/icon-192.png'])).then(() => self.skipWaiting()));
 });

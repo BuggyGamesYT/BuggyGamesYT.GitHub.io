@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <script>
+      try { var t = localStorage.getItem("hark-theme"); if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DealerCraft Beta · Buggy Games YT</title>
+    <meta name="description" content="Join the DealerCraft closed beta on Google Play." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400&display=swap"
+    />
+    <link rel="stylesheet" href="../../hark.css" />
+    <link rel="stylesheet" href="../../hark-hero.css" />
+    <style>
+      .x-avatar-ring {
+        display: block;
+        width: 64px;
+        height: 64px;
+        padding: 2px;
+        border-radius: var(--r-pill);
+        box-shadow: var(--hark-shadow);
+        margin-bottom: 12px;
+      }
+      .x-avatar {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border-radius: var(--r-pill);
+        object-fit: cover;
+      }
+      /* RGB rainbow ring: a spinning conic gradient. Without @property the angle can't
+         interpolate, so the ring simply stays still (0deg and 360deg look the same). */
+      @property --x-angle {
+        syntax: "<angle>";
+        inherits: false;
+        initial-value: 0deg;
+      }
+      @keyframes x-rgb-spin {
+        to { --x-angle: 360deg; }
+      }
+      .x-rgb, .btn.x-rgb {
+        --x-rgb: conic-gradient(from var(--x-angle, 0deg), #ff0040, #ff8a00, #ffe600, #39ff88, #00e5ff, #3d5afe, #b026ff, #ff0040);
+        --x-r: var(--r-m);
+        position: relative;
+        isolation: isolate;
+      }
+      /* Ring: a pseudo-element masked down to its 2px padding. */
+      .x-rgb::before,
+      .x-rgb:not(.btn)::after,
+      .btn.x-rgb::before {
+        content: "";
+        position: absolute;
+        pointer-events: none;
+        background: var(--x-rgb);
+        animation: x-rgb-spin 4s linear infinite;
+        -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+      }
+      .x-rgb::before {
+        inset: 0;
+        padding: 2px;
+        border-radius: var(--x-r);
+        z-index: 1;
+      }
+      /* Glow: blurred, then masked so it only shows outside the element. */
+      .x-rgb:not(.btn)::after,
+      .btn.x-rgb::before {
+        inset: -10px;
+        padding: 10px;
+        border-radius: calc(var(--x-r) + 10px);
+        filter: blur(7px);
+        opacity: 0.35;
+        z-index: -1;
+        transition: opacity var(--dur-quick) var(--ease-out);
+      }
+      /* Tighter glows, and room between neighbours so no two rings or glows touch. */
+      .x-rgb:not(.btn)::after {
+        inset: -8px;
+        padding: 8px;
+        border-radius: calc(var(--x-r) + 8px);
+        filter: blur(5px);
+      }
+      .btn.x-rgb::before {
+        inset: -5px;
+        padding: 5px;
+        border-radius: calc(var(--x-r) + 5px);
+        filter: blur(3px);
+      }
+      .links:has(> .btn.x-rgb) { gap: 18px 20px; }
+      .cards:has(> .x-rgb) { gap: 32px; }
+      .cards > .x-rgb > .links { margin-top: 20px; }
+      @media (max-width: 599px) {
+        .links:has(> .btn.x-rgb) { gap: 18px; }
+        .cards:has(> .x-rgb) { gap: 28px; }
+      }
+      .x-rgb:not(.btn):hover::after,
+      .x-rgb:not(.btn):focus-within::after,
+      .btn.x-rgb:hover::before,
+      .btn.x-rgb:focus-visible::before { opacity: 0.6; }
+      /* Buttons keep ::after for the library's arrow, so their 2px ring is the
+         padding-box/border-box trick; padding shrinks by 1px to keep the size. */
+      .btn.x-rgb {
+        --x-r: var(--r-s);
+        border: 2px solid transparent;
+        padding: 4px 11px;
+        background:
+          linear-gradient(var(--fill-primary-on), var(--fill-primary-on)) padding-box,
+          var(--x-rgb) border-box;
+        animation: x-rgb-spin 4s linear infinite;
+      }
+      @media (pointer: coarse), (max-width: 599px) { .btn.x-rgb { padding-inline: 13px; } }
+      .x-avatar-ring.x-rgb { --x-r: var(--r-pill); }
+      .x-avatar-ring.x-rgb::before { z-index: 1; }
+      @media (prefers-reduced-motion: reduce) {
+        .x-rgb::before, .x-rgb:not(.btn)::after, .btn.x-rgb, .btn.x-rgb::before { animation: none; }
+      }
+      /* Glitch bursts: a full-viewport overlay above the page, never catching taps. */
+      .x-glitch {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 2147483000;
+        pointer-events: none;
+      }
+      /* Hero pixel particles: over the photo, under the hero's dark overlay and copy. */
+      .x-hero-px {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -2;
+        pointer-events: none;
+      }
+      /* Rainbow RGB name: one seamless color cycle per 300% tile, slid one tile per loop. */
+      .x-rainbow {
+        background-image: linear-gradient(90deg, #ff0040, #ff8a00, #ffe600, #39ff88, #00e5ff, #3d5afe, #b026ff, #ff0040);
+        background-size: 300% 100%;
+        background-repeat: repeat-x;
+        background-position: 0% 50%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        /* Real color stays white (fallback and contrast); the fill is made transparent to show the gradient. */
+        color: #fff;
+        -webkit-text-fill-color: transparent;
+        filter: drop-shadow(0 0 6px rgba(176, 38, 255, 0.45)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+        animation: x-rainbow-slide 4s linear infinite;
+      }
+      @keyframes x-rainbow-slide {
+        from { background-position: 0% 50%; }
+        to { background-position: -150% 50%; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .x-rainbow { animation: none; }
+        .x-glitch { display: none; }
+        .x-hero-px { display: none; }
+      }
+    </style>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#1d1d1f">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <script>if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js')); }</script>
+    <style>
+      .bf { display:grid; gap:18px; max-width:520px; margin-top:8px; }
+      .bf label { display:grid; gap:6px; font: var(--type-body-strong); color: var(--text-primary); }
+      .bf .hint { font: var(--type-small); color: var(--text-secondary); font-weight: var(--weight-regular); }
+      .bf input[type=text], .bf input[type=email] {
+        font: var(--type-body); color: var(--text-primary); background: var(--fill-secondary);
+        border: 1px solid var(--stroke-primary); border-radius: var(--r-s); padding: 12px 14px; min-height: var(--tap, 44px); width:100%; box-sizing:border-box;
+      }
+      .bf input:focus { outline: 2px solid #00e5ff; outline-offset: 1px; }
+      .bf .chk { display:flex; gap:10px; align-items:flex-start; font: var(--type-body); }
+      .bf .chk input { width:20px; height:20px; margin-top:2px; accent-color:#39ff88; flex:none; }
+      .bf .hp { position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden; }
+      .bf button.btn { justify-self:start; cursor:pointer; font: var(--type-body-strong); }
+      .bf button[disabled] { opacity:.6; cursor:wait; }
+      .bf-msg { font: var(--type-body); min-height:1.4em; margin:0; }
+      .bf-msg.ok { color: var(--fill-system-green); } .bf-msg.err { color: var(--fill-system-red); }
+      .steps { margin: 0; padding-left: 1.2em; color: var(--text-secondary); font: var(--type-body); display:grid; gap:6px; }
+    </style>
+  </head>
+  <body>
+    <div class="page" id="top">
+      <main class="main">
+        <div class="links" style="margin:24px 0 0"><a class="btn x-rgb" href="../../games/index.html">← Games &amp; Apps</a></div>
+        <section class="section" id="beta">
+          <div class="head">
+            <p class="head__eyebrow">DealerCraft · Google Play beta</p>
+            <h1>Help DealerCraft hit the Play Store.</h1>
+            <p class="muted">Google needs at least 12 testers playing for 14 days before a new game can go public. Sign up, get early access, and help squash bugs before everyone else.</p>
+          </div>
+          <ol class="steps">
+            <li>Sign up below with the Google account (Gmail) you use on the Play Store.</li>
+            <li>I add you to the DealerCraft test list and send you the opt-in link.</li>
+            <li>Install DealerCraft from Google Play and keep it for at least 14 days.</li>
+          </ol>
+        </section>
+
+        <section class="section" id="signup">
+          <div class="head"><h2>Join the beta</h2></div>
+          <form class="bf" id="betaForm" novalidate>
+            <label>Nickname
+              <input type="text" id="nick" name="nick" maxlength="24" autocomplete="nickname" required placeholder="What should I call you?" />
+            </label>
+            <label>Google Play email
+              <span class="hint">The Google account signed in to Play Store on your phone.</span>
+              <input type="email" id="email" name="email" maxlength="100" autocomplete="email" inputmode="email" required placeholder="you@gmail.com" />
+            </label>
+            <div class="hp" aria-hidden="true"><label>Website <input type="text" id="website" name="website" tabindex="-1" autocomplete="off" /></label></div>
+            <label class="chk"><input type="checkbox" id="android" required /> <span>I have an Android phone or tablet with Google Play.</span></label>
+            <label class="chk"><input type="checkbox" id="consent" required /> <span>I agree my email is only used to invite me to the DealerCraft test. It is never shown publicly or shared.</span></label>
+            <button type="submit" class="btn x-rgb" id="submitBtn">🌾 Sign me up</button>
+            <p class="bf-msg" id="msg" role="status" aria-live="polite"></p>
+          </form>
+        </section>
+      </main>
+      <footer class="foot">
+        <p>Buggy Games YT · Stay positive and have a wonderful day.</p>
+      </footer>
+    </div>
+    <script src="../../hark.js"></script>
+    <script>
+    (function () {
+      var DB = "https://bugsquash-leaderboard-default-rtdb.firebaseio.com/dealercraft_beta/signups/";
+      var RE = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
+      var form = document.getElementById("betaForm"), msg = document.getElementById("msg"), btn = document.getElementById("submitBtn");
+      var started = Date.now();
+      function say(t, cls) { msg.textContent = t; msg.className = "bf-msg " + (cls || ""); }
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var nick = document.getElementById("nick").value.trim().slice(0, 24);
+        var email = document.getElementById("email").value.trim().toLowerCase();
+        if (document.getElementById("website").value || Date.now() - started < 2500) { say("Thanks! You're on the list.", "ok"); form.reset(); return; }
+        if (!nick) return say("Add a nickname.", "err");
+        if (!RE.test(email) || email.length > 100) return say("That email doesn't look right.", "err");
+        if (!document.getElementById("android").checked) return say("The Play test needs an Android device with Google Play.", "err");
+        if (!document.getElementById("consent").checked) return say("Tick the consent box so I can invite you.", "err");
+        var key = email.split(".").join(",");
+        btn.disabled = true; say("Signing you up…");
+        fetch(DB + encodeURIComponent(key) + ".json", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nick: nick, email: email, android: true, ts: { ".sv": "timestamp" } })
+        }).then(function (r) {
+          if (r.ok) { say("You're in, " + nick + "! Watch " + email + " for your invite.", "ok"); form.reset(); }
+          else if (r.status === 401 || r.status === 403) { say("That email is already signed up. You're all set!", "ok"); }
+          else { say("Something glitched. Please try again in a minute.", "err"); }
+        }).catch(function () { say("Couldn't reach the server. Check your connection and try again.", "err"); })
+          .then(function () { btn.disabled = false; });
+      });
+    })();
+    </script>
+  </body>
+</html>
