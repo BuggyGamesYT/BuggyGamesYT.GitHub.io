@@ -70,10 +70,21 @@
   #abtns button { position: absolute; width: 72px; height: 72px; border-radius: 50%; border: 2px solid rgba(200,200,200,.4); background: rgba(150,30,40,.55); color: #fff; font: inherit; font-size: 22px; font-weight: 700; pointer-events: auto; touch-action: none; }
   #btnA { right: 0; top: 0; }
   #btnB { left: 0; bottom: 0; }
+  #abtns { bottom: max(46px, env(safe-area-inset-bottom)) !important; }
+  #pad { bottom: max(46px, env(safe-area-inset-bottom)) !important; }
   #abtns button.on { background: rgba(230,70,80,.8); }
-  #pauseBtn { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); z-index: 10; display: none; width: 44px; height: 44px; border: 1px solid #444; background: rgba(0,0,0,.6); color: #ccc; font: inherit; font-size: 16px; }
-  #pauseBtn.on { display: block; }
-  body.touch:not(.portrait) #pad, body.touch:not(.portrait) #abtns { opacity: .75; }
+  #abtns button span { display: none; }
+  #ss { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(8px, env(safe-area-inset-bottom)); display: flex; gap: 14px; pointer-events: none; }
+  #ss button { pointer-events: auto; touch-action: none; font: inherit; font-size: 11px; letter-spacing: 1px; color: #bbb; background: rgba(60,60,65,.7); border: 1px solid rgba(200,200,200,.3); border-radius: 12px; padding: 7px 14px; transform: rotate(-12deg); }
+  #ss button.on { background: rgba(200,200,200,.5); color: #000; }
+  #stickZone { position: absolute; left: 0; bottom: 0; width: 50%; height: 40%; pointer-events: auto; touch-action: none; display: none; }
+  #stickHint { position: absolute; left: max(40px, env(safe-area-inset-left)); bottom: max(46px, env(safe-area-inset-bottom)); width: 110px; height: 110px; border-radius: 50%; border: 2px dashed rgba(200,200,200,.25); }
+  #stickBase { position: fixed; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; background: rgba(70,70,75,.35); border: 2px solid rgba(200,200,200,.35); display: none; pointer-events: none; }
+  #stickBase.on { display: block; }
+  #stickKnob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; border-radius: 50%; background: rgba(210,210,215,.6); transform: translate(-50%,-50%); }
+  body.stick #pad { display: none; }
+  body.stick #stickZone { display: block; }
+  body.touch:not(.portrait) #pad, body.touch:not(.portrait) #abtns, body.touch:not(.portrait) #ss { opacity: .75; }
   .credit { font-size: 11px; color: #555; margin-top: 14px; }
 </style>
 </head>
@@ -84,9 +95,11 @@
 
 <div id="touch">
   <div id="pad"><i class="h"></i><i class="v"></i><i class="c"></i></div>
-  <div id="abtns"><button id="btnA">A</button><button id="btnB">B</button></div>
+  <div id="stickZone"><div id="stickHint"></div></div>
+  <div id="stickBase"><div id="stickKnob"></div></div>
+  <div id="abtns"><button id="btnB">B</button><button id="btnA">A</button></div>
+  <div id="ss"><button id="btnSelect">SELECT</button><button id="btnStart">START</button></div>
 </div>
-<button id="pauseBtn" aria-label="Pause">II</button>
 
 <div class="panel" id="cartPanel"><div class="box">
   <div class="cart"><div class="label"><div class="tape"></div><div class="hand">SECONDHAND</div><div class="small">don't play this</div><div class="price">$1</div></div></div>
@@ -116,6 +129,7 @@
   <h2>PAUSED</h2>
   <p>Bell pieces: <span id="pShards"></span> · Deaths: <span id="pDeaths"></span></p>
   <div class="row"><button class="b" id="pResume">Resume</button><button class="b alt" id="pSound">Sound: on</button></div>
+  <div class="row"><button class="b alt padOpt">Phone controls: D-pad</button></div>
   <div class="row"><button class="b alt" id="pHelp">Controls</button><button class="b alt" id="pQuit">Save &amp; quit</button></div>
 </div></div>
 
@@ -123,12 +137,16 @@
   <h2>CONTROLS</h2>
   <ul class="help">
     <li><span class="k">←↑↓→</span> or <span class="k">WASD</span> walk</li>
-    <li><span class="k">Z</span> <span class="k">Space</span> <span class="k">Enter</span> A: talk, read, swing your stick</li>
-    <li><span class="k">X</span> <span class="k">Esc</span> B: skip text, pause</li>
+    <li><span class="k">Z</span> A: talk, read, next line</li>
+    <li><span class="k">X</span> <span class="k">Space</span> B: swing your sword</li>
+    <li><span class="k">Enter</span> <span class="k">Esc</span> START: pause</li>
+    <li><span class="k">Shift</span> <span class="k">Tab</span> SELECT: map</li>
     <li><span class="k">M</span> mute</li>
-    <li>Phone: slide your thumb on the pad, tap A and B.</li>
+    <li>Phone: D-pad or joystick (switch below or in the pause menu), A, B, START, SELECT.</li>
+    <li>To change areas, walk off the edge of the screen where a path or opening leads out.</li>
     <li>Find the three bell pieces. Don't let the statue get behind you.</li>
   </ul>
+  <div class="row"><button class="b alt padOpt">Phone controls: D-pad</button></div>
   <button class="b" id="helpClose">OK</button>
 </div></div>
 

@@ -151,7 +151,7 @@ const PAL = {
   statueR: { h: '#8d8d8d', s: '#a7a7a7', k: '#c01818', c: '#7c7c7c', p: '#6c6c6c', b: '#575757' },
   noface: { h: '#e8e8e8', s: '#e9bf98', k: '#e9bf98', c: '#6a4a8c', p: '#4a3466', b: '#2b1d10' },
 };
-function drawHuman(ctx, pal, dir, x, y, step, alpha) {
+function drawHuman(ctx, pal, dir, x, y, step, alpha, noArms) {
   // x,y = feet center in screen coords
   let rows = dir === 1 ? HUMAN.up : dir === 0 ? HUMAN.down : HUMAN.side;
   if (step) {
@@ -159,6 +159,7 @@ function drawHuman(ctx, pal, dir, x, y, step, alpha) {
     const wk = dir >= 2 ? WALK.side : WALK.down;
     rows[11] = wk[1]; rows[12] = wk[1]; rows[13] = wk[2];
   }
+  if (noArms) { rows = rows.slice(); rows[8] = rows[8].replace(/s/g, '.'); rows[9] = rows[9].replace(/s/g, '.'); }
   const flip = dir === 2;
   const ox = Math.round(x - 5), oy = Math.round(y - 13);
   if (alpha !== undefined) ctx.globalAlpha = alpha;
@@ -367,9 +368,10 @@ addEventListener('keydown', e => {
   audioInit();
   if (KEYMAP[e.code]) { held[KEYMAP[e.code]] = true; e.preventDefault(); return; }
   if (e.repeat) return;
-  if (['KeyZ', 'Space', 'Enter', 'KeyJ'].includes(e.code)) { pressA = true; e.preventDefault(); onA(); }
-  else if (['KeyX', 'Escape', 'KeyK', 'Backspace'].includes(e.code)) { pressB = true; e.preventDefault(); onB(); }
-  else if (e.code === 'KeyP') { if (mode === 'play') openPause(); }
+  if (['KeyZ', 'KeyJ'].includes(e.code)) { pressA = true; e.preventDefault(); onA(); }
+  else if (['KeyX', 'KeyK', 'Space'].includes(e.code)) { pressB = true; e.preventDefault(); onB(); }
+  else if (['Enter', 'Escape', 'KeyP'].includes(e.code)) { e.preventDefault(); onStart(); }
+  else if (['ShiftLeft', 'ShiftRight', 'Tab', 'KeyQ'].includes(e.code)) { e.preventDefault(); onSelect(); }
   else if (e.code === 'KeyM') { setMute(!muted); refreshPause(); }
 });
 addEventListener('keyup', e => { if (KEYMAP[e.code]) held[KEYMAP[e.code]] = false; });
@@ -386,7 +388,7 @@ function padSet(e) {
   if (Math.abs(dx) > Math.abs(dy)) held[dx < 0 ? 'left' : 'right'] = true; else held[dy < 0 ? 'up' : 'down'] = true;
   pad.dataset.d = held.up ? 'u' : held.down ? 'd' : held.left ? 'l' : 'r';
 }
-pad.addEventListener('pointerdown', e => { audioInit(); padId = e.pointerId; pad.setPointerCapture(e.pointerId); padSet(e); e.preventDefault(); });
+pad.addEventListener('pointerdown', e => { audioInit(); padId = e.pointerId; try { pad.setPointerCapture(e.pointerId); } catch (_) {} padSet(e); e.preventDefault(); });
 pad.addEventListener('pointermove', e => { if (e.pointerId === padId) padSet(e); });
 const padEnd = e => { if (e.pointerId !== padId) return; padId = null; held.up = held.down = held.left = held.right = false; pad.dataset.d = ''; };
 pad.addEventListener('pointerup', padEnd); pad.addEventListener('pointercancel', padEnd);
@@ -396,12 +398,42 @@ function btn(id, fn) {
   const up = () => b.classList.remove('on');
   b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('pointerleave', up);
 }
+// joystick: a floating stick anywhere in the left zone
+const stickZone = $('stickZone'), stickBase = $('stickBase'), stickKnob = $('stickKnob');
+const AXIS = { x: 0, y: 0 };
+let stickId = null, sx0 = 0, sy0 = 0;
+stickZone.addEventListener('pointerdown', e => {
+  audioInit(); stickId = e.pointerId; try { stickZone.setPointerCapture(e.pointerId); } catch (_) {}
+  sx0 = e.clientX; sy0 = e.clientY;
+  stickBase.style.left = sx0 + 'px'; stickBase.style.top = sy0 + 'px'; stickBase.classList.add('on');
+  stickKnob.style.transform = 'translate(-50%,-50%)'; e.preventDefault();
+});
+stickZone.addEventListener('pointermove', e => {
+  if (e.pointerId !== stickId) return;
+  let dx = e.clientX - sx0, dy = e.clientY - sy0; const R = 48, d = Math.hypot(dx, dy);
+  if (d > R) { dx = dx / d * R; dy = dy / d * R; }
+  stickKnob.style.transform = 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px))';
+  if (d < 10) { AXIS.x = AXIS.y = 0; } else { AXIS.x = dx / R; AXIS.y = dy / R; }
+});
+const stickEnd = e => { if (e.pointerId !== stickId) return; stickId = null; AXIS.x = AXIS.y = 0; stickBase.classList.remove('on'); };
+stickZone.addEventListener('pointerup', stickEnd); stickZone.addEventListener('pointercancel', stickEnd);
+let padStyle = 'dpad';
+try { padStyle = localStorage.getItem('secondhand-pad') || 'dpad'; } catch (e) {}
+function setPadStyle(st) {
+  padStyle = st; try { localStorage.setItem('secondhand-pad', st); } catch (e) {}
+  document.body.classList.toggle('stick', st === 'stick');
+  AXIS.x = AXIS.y = 0; held.up = held.down = held.left = held.right = false;
+  document.querySelectorAll('.padOpt').forEach(b => b.textContent = 'Phone controls: ' + (st === 'stick' ? 'Joystick' : 'D-pad'));
+}
+setPadStyle(padStyle);
+document.querySelectorAll('.padOpt').forEach(b => b.onclick = () => setPadStyle(padStyle === 'stick' ? 'dpad' : 'stick'));
+btn('btnStart', () => onStart());
+btn('btnSelect', () => onSelect());
 btn('btnA', () => { pressA = true; onA(); });
 btn('btnB', () => { pressB = true; onB(); });
-$('pauseBtn').addEventListener('click', () => { if (mode === 'play') openPause(); });
 let touchMode = matchMedia('(pointer: coarse)').matches;
 addEventListener('touchstart', () => { if (!touchMode) { touchMode = true; layout(); } }, { passive: true });
-cv.addEventListener('pointerdown', () => { audioInit(); if (mode === 'boot' || mode === 'dialog' || mode === 'card') onA(); });
+cv.addEventListener('pointerdown', () => { audioInit(); if (mode === 'boot' || mode === 'dialog' || mode === 'card' || mode === 'map') onA(); });
 
 // ---------- layout ----------
 let scale = 3;
@@ -427,8 +459,7 @@ function layout() {
   const toast = $('toast');
   toast.style.top = (top + 22 * scale) + 'px';
   toast.style.fontSize = Math.max(12, Math.min(20, scale * 5.5)) + 'px';
-  touchEl.classList.toggle('on', touchMode && (mode === 'play' || mode === 'dialog' || mode === 'boot' || mode === 'card'));
-  $('pauseBtn').classList.toggle('on', touchMode && mode === 'play');
+  touchEl.classList.toggle('on', touchMode && (mode === 'play' || mode === 'dialog' || mode === 'boot' || mode === 'card' || mode === 'map'));
 }
 addEventListener('resize', layout);
 
@@ -473,7 +504,7 @@ function enterRoom(name, x, y) {
   showToast(name === 'void' ? corrupt('SAVE 01', 0.5) : (c >= 2 && Math.random() < 0.35 ? corrupt(ROOMS[name].name, 0.4) : ROOMS[name].name));
   save();
   // room intro events
-  if (name === 'village' && !S.flags.intro) { S.flags.intro = true; say([['', 'Welcome to MILLBROOK, {N}!'], ['', 'Talk to people with A. Swing your stick with A too.']]); }
+  if (name === 'village' && !S.flags.intro) { S.flags.intro = true; say([['', 'Welcome to MILLBROOK, {N}!'], ['', 'Talk and read with A. Swing your sword with B. START pauses, SELECT shows the map.']]); }
   if (name === 'field' && c >= 2 && !S.flags.gap) { S.flags.gap = true; say([['', 'There is a gap in the trees to the north that was not there before.']]); }
   if (name === 'void' && !S.flags.void) { S.flags.void = true; }
   if (name === 'lake' && c >= 1 && !S.flags.dock) { S.flags.dock = true; say([['', 'For a second, something pale moves under the dock.'], ['', 'You decide it was a fish.']]); }
@@ -502,7 +533,7 @@ function solidAt(px, py) {
   return SOLID.has(tileAt(room, Math.floor(px / 16), Math.floor(py / 16)));
 }
 function boxFree(x, y, self) {
-  const pts = [[x - 5, y - 4], [x + 4, y - 4], [x - 5, y + 2], [x + 4, y + 2]];
+  const pts = [[x - 4, y - 4], [x + 3, y - 4], [x - 4, y + 2], [x + 3, y + 2]];
   for (const [a, b] of pts) if (solidAt(a, b)) return false;
   for (const n of npcs) if (n !== self && Math.abs(n.x - x) < 10 && Math.abs(n.y - y) < 8) return false;
   return true;
@@ -576,16 +607,30 @@ function onA() {
   if (mode === 'boot') { if (bootT > 0.8) { SFX.ok(); openFiles(); } return; }
   if (mode === 'dialog') { dialogAdvance(); return; }
   if (mode === 'card') { if (cardT > 1.2 && cardDone) { const f = cardDone; cardDone = null; f(); } return; }
+  if (mode === 'map') { mode = 'play'; layout(); return; }
   if (mode === 'play') { interact(); return; }
 }
 function onB() {
   if (mode === 'dialog') { dialogAdvance(); return; }
-  if (mode === 'play') { openPause(); return; }
+  if (mode === 'card') { onA(); return; }
+  if (mode === 'map') { mode = 'play'; layout(); return; }
   if (mode === 'paused') { closePause(); return; }
+  if (mode === 'play') { swing(); return; }
+}
+function onStart() {
+  if (mode === 'boot' || mode === 'card') { onA(); return; }
+  if (mode === 'dialog') { dialogAdvance(); return; }
+  if (mode === 'play' || mode === 'map') { mode = 'play'; openPause(); return; }
+  if (mode === 'paused') { closePause(); return; }
+}
+function onSelect() {
+  if (mode === 'play') { mode = 'map'; SFX.ok(); layout(); return; }
+  if (mode === 'map') { mode = 'play'; layout(); return; }
 }
 window.shBack = function () {
   if (mode === 'dialog') { dialogAdvance(); return 1; }
   if (mode === 'play') { openPause(); return 1; }
+  if (mode === 'map') { mode = 'play'; layout(); return 1; }
   if (mode === 'paused') { closePause(); return 1; }
   if (mode === 'name' || (mode === 'files' && $('confirm').classList.contains('show'))) { $('confirm').classList.remove('show'); openFiles(); return 1; }
   if (mode === 'help') { closeHelp(); return 1; }
@@ -616,9 +661,12 @@ function interact() {
     say(C() >= 3 ? [['', 'Your reflection is a second late.']] : [['', 'The water is very still. And very cold.']]);
     return;
   }
-  // swing the stick
+}
+const SWING = 0.26;
+function swing() {
+  const [fx_, fy_] = FV[P.dir];
   if (P.swing <= 0) {
-    P.swing = 0.22; SFX.swing();
+    P.swing = SWING; P.hitDone = false; SFX.swing();
     const hx = P.x + fx_ * 12, hy = P.y - 4 + fy_ * 12;
     for (const w of wisps) if (w.alive && Math.abs(w.x - hx) < 13 && Math.abs(w.y - hy) < 13) {
       w.alive = false; SFX.hit(); burst(w.x, w.y, '#bfefff');
@@ -626,7 +674,7 @@ function interact() {
     }
     if (statue && Math.abs(statue.x - hx) < 12 && Math.abs(statue.y - 4 - hy) < 14) {
       SFX.hit(); shake = 0.15;
-      if (!S.flags.hitStatue) { S.flags.hitStatue = true; say([['', 'Your stick bounces off the stone.'], ['', 'It does not like that.']]); }
+      if (!S.flags.hitStatue) { S.flags.hitStatue = true; say([['', 'Your sword bounces off the stone.'], ['', 'It does not like that.']]); }
     }
   }
 }
@@ -648,7 +696,7 @@ function talk(n) {
       return say([['ELDER', 'Ah, a new face. What was your name again?'], ['ELDER', '{N}. Hm. That\'s not the name I remember.'],
         ['ELDER', 'Never mind. The old bell on the lake has broken into three pieces.'],
         ['ELDER', 'One is in the WOODS to the west. One is in the CAVE to the east. One is up in the HIGH FIELD.'],
-        ['ELDER', 'Bring them to the bell at the end of the dock. Then everything can go back to how it was.']]);
+        ['ELDER', 'Bring them to the bell at the end of the dock. Then everything can go back to how it was.'], ['ELDER', 'Paths lead off every edge of the village. Press SELECT if you get lost.']]);
     }
     if (c === 0) return say([['ELDER', 'Woods to the west. Cave to the east. The field up north.'], ['ELDER', 'The cave is dark. Stay close to the walls.']]);
     if (c === 1) return say([['ELDER', 'You found one. Good, good.'], ['ELDER', 'Did the statue move? I could swear it was on its plinth this morning.'], ['ELDER', 'Don\'t let it get behind you, {N}.']]);
@@ -879,12 +927,18 @@ function update(dt) {
   // player movement
   let mx = 0, my = 0;
   if (held.left) mx -= 1; if (held.right) mx += 1; if (held.up) my -= 1; if (held.down) my += 1;
-  if (mx && my) { if (P.dir >= 2) my = 0; else mx = 0; }
-  if (P.swing > 0) { P.swing -= dt; mx = my = 0; }
-  if (mx || my) {
-    P.dir = my > 0 ? 0 : my < 0 ? 1 : mx < 0 ? 2 : 3;
-    const sp = 62 * dt;
+  if (padStyle === 'stick' && (AXIS.x || AXIS.y)) { mx = AXIS.x; my = AXIS.y; }
+  const mag = Math.hypot(mx, my);
+  if (mag > 1) { mx /= mag; my /= mag; }
+  if (P.swing > 0) { P.swing -= dt; mx *= 0.15; my *= 0.15; }
+  if (Math.abs(mx) > 0.05 || Math.abs(my) > 0.05) {
+    if (P.swing <= 0) P.dir = Math.abs(mx) > Math.abs(my) ? (mx < 0 ? 2 : 3) : (my > 0 ? 0 : 1);
+    const sp = 64 * dt;
+    const bx = P.x, by = P.y;
     moveBody(P, mx * sp, my * sp);
+    // corner assist: slide around the edge of a blocking tile
+    if (P.x === bx && mx && !my) { const cy = Math.floor((P.y - 1) / 16) * 16 + 9; const ny = P.y + Math.sign(cy - P.y) * sp; if (Math.abs(cy - P.y) > 0.5 && boxFree(P.x + Math.sign(mx) * 2, cy, P)) moveBody(P, 0, ny - P.y); }
+    if (P.y === by && my && !mx) { const cx = Math.floor(P.x / 16) * 16 + 8; const nx = P.x + Math.sign(cx - P.x) * sp; if (Math.abs(cx - P.x) > 0.5 && boxFree(cx, P.y + Math.sign(my) * 2, P)) moveBody(P, nx - P.x, 0); }
     P.anim += dt; P.step = ((P.anim * 7) | 0) % 2;
   } else P.step = 0;
   if (P.kx || P.ky) {
@@ -897,11 +951,11 @@ function update(dt) {
 
   // room exits
   const r = ROOMS[room];
-  if (P.x < 1 && r.w) return enterRoom(r.w, PW - 3, P.y);
-  if (P.x > PW - 1 && r.e) return enterRoom(r.e, 3, P.y);
-  if (P.y < 5 && r.n && !(room === 'field' && c < 2)) return enterRoom(r.n, P.x, PH - 3);
-  if (P.y > PH - 1 && r.s) return enterRoom(r.s, P.x, 8);
-  P.x = clamp(P.x, 4, PW - 4); P.y = clamp(P.y, 5, PH - 2);
+  if (P.x < 3 && r.w) return enterRoom(r.w, PW - 10, P.y);
+  if (P.x > PW - 3 && r.e) return enterRoom(r.e, 10, P.y);
+  if (P.y < 6 && r.n && !(room === 'field' && c < 2)) return enterRoom(r.n, P.x, PH - 6);
+  if (P.y > PH - 3 && r.s) return enterRoom(r.s, P.x, 14);
+  P.x = clamp(P.x, 2, PW - 2); P.y = clamp(P.y, 5, PH - 2);
 
   // wisps
   for (const w of wisps) {
@@ -983,6 +1037,7 @@ function render() {
   if (mode === 'memory') { renderMemory(); blit(); return; }
   renderWorld();
   if (mode === 'ending') renderEndingFx();
+  if (mode === 'map') renderMap();
   blit();
 }
 function renderWorld() {
@@ -1043,20 +1098,40 @@ function drawNpc(n) {
 }
 function drawPlayer(alpha) {
   const y = mode === 'ending' && ending.phase >= 2 ? P.y + Math.min(10, ending.t * 2.5) : P.y;
+  const swingNow = P.swing > 0;
+  // when swinging toward the camera side the arm draws over the body; when facing up it goes behind
+  if (swingNow && P.dir === 1) drawSwing(alpha, y);
+  if (swingNow) { drawHuman(g, PAL.player, P.dir, P.x, HUD + y, 0, alpha, true); if (P.dir !== 1) drawSwing(alpha, y); return; }
   if (P.hidden) {
     drawHuman(g, PAL.player, P.dir, P.x, HUD + y, P.step, alpha);
     // grass in front of legs
     g.fillStyle = '#5cbc4c'; for (let i = 0; i < 5; i++) g.fillRect(P.x - 5 + i * 2, HUD + y - 5, 1, 5);
   } else drawHuman(g, PAL.player, P.dir, P.x, HUD + y, P.step, alpha);
-  if (P.swing > 0) {
-    const [fx_, fy_] = FV[P.dir];
-    const k = 1 - P.swing / 0.22;
-    g.fillStyle = '#8a5a2b';
-    for (let i = 3; i < 13; i++) {
-      const ang = Math.atan2(fy_, fx_) + (k - 0.5) * 1.6;
-      g.fillRect((P.x + Math.cos(ang) * i) | 0, (HUD + P.y - 6 + Math.sin(ang) * i) | 0, 2, 2);
-    }
+}
+function drawSwing(alpha, y) {
+  const [fx_, fy_] = FV[P.dir];
+  const k = 1 - P.swing / SWING; // 0..1
+  // wind up, then a fast slash, then follow through
+  const e = k < 0.25 ? -0.25 + k * 0 : k < 0.6 ? ((k - 0.25) / 0.35) : 1;
+  const base = Math.atan2(fy_, fx_);
+  const ang = base + (-1.25 + e * 2.5) * (P.dir === 2 || P.dir === 1 ? -1 : 1);
+  const sx = P.x + (P.dir === 2 ? -3 : P.dir === 3 ? 3 : (P.dir === 0 ? 4 : -4)), sy = HUD + y - 6;
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  g.globalAlpha = alpha === undefined ? 1 : alpha;
+  // sleeve + arm
+  for (let i = 0; i < 5; i++) { g.fillStyle = i < 2 ? PAL.player.c : PAL.player.s; g.fillRect((sx + ca * i) | 0, (sy + sa * i) | 0, 2, 2); }
+  const hx = sx + ca * 5, hy = sy + sa * 5;
+  // hilt + crossguard
+  g.fillStyle = '#6b4320'; g.fillRect((hx) | 0, (hy) | 0, 2, 2);
+  g.fillStyle = '#e8b830'; g.fillRect((hx + ca * 2 - sa * 2) | 0, (hy + sa * 2 + ca * 2) | 0, 1, 1); g.fillRect((hx + ca * 2 + sa * 2) | 0, (hy + sa * 2 - ca * 2) | 0, 1, 1); g.fillRect((hx + ca * 2) | 0, (hy + sa * 2) | 0, 2, 2);
+  // blade
+  for (let i = 3; i < 13; i++) { g.fillStyle = i === 12 ? '#ffffff' : '#c9d3dc'; g.fillRect((hx + ca * i) | 0, (hy + sa * i) | 0, 2, 2); }
+  // swoosh trail during the slash
+  if (k > 0.25 && k < 0.75) {
+    g.fillStyle = 'rgba(255,255,255,.35)';
+    for (let t = 1; t <= 4; t++) { const a2 = ang - t * 0.22 * (P.dir === 2 || P.dir === 1 ? -1 : 1); g.fillRect((hx + Math.cos(a2) * 11) | 0, (hy + Math.sin(a2) * 11) | 0, 2, 2); }
   }
+  g.globalAlpha = 1;
 }
 function drawWisp(w) {
   const x = w.x | 0, y = (HUD + w.y + Math.sin(w.t * 5) * 1.5) | 0;
@@ -1099,6 +1174,30 @@ function renderHud() {
   let label = S.name;
   if (c >= 2 && Math.sin(T * 0.9) > 0.97) label = 'WREN';
   g.fillText(label, W / 2, 8);
+}
+const MAPPOS = { field: [1, 0], woods: [0, 1], village: [1, 1], cave: [2, 1], lake: [1, 2], void: [1, -1] };
+function renderMap() {
+  g.fillStyle = 'rgba(0,0,0,.82)'; g.fillRect(0, 0, W, H);
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = '#ddd'; g.font = 'bold 10px monospace'; g.fillText('MAP', W / 2, 12);
+  const cw = 64, ch = 34, ox = W / 2 - cw * 1.5, oy = 60;
+  const showVoid = C() >= 2 || S.flags.void;
+  for (const [k, [cx, cy]] of Object.entries(MAPPOS)) {
+    if (k === 'void' && !showVoid) continue;
+    const x = ox + cx * cw + 3, y = oy + cy * ch + 3, here = k === room;
+    g.fillStyle = k === 'void' ? '#000' : here ? '#1f9e8f' : '#2a2a2e'; g.fillRect(x, y, cw - 6, ch - 6);
+    g.strokeStyle = k === 'void' ? '#552' : '#555'; g.strokeRect(x + 0.5, y + 0.5, cw - 7, ch - 7);
+    g.fillStyle = here ? '#fff' : '#aaa'; g.font = '7px monospace';
+    const nm = k === 'void' ? corrupt('???', 0.5) : ROOMS[k].name.replace('THE ', '');
+    g.fillText(nm, x + (cw - 6) / 2, y + 10);
+    const sh = { woods: 'woods', cave: 'cave', field: 'field' }[k];
+    if (sh) { g.fillStyle = S.shards[sh] ? '#e8b830' : '#555'; g.fillText(S.shards[sh] ? 'PIECE ✓' : 'PIECE ?', x + (cw - 6) / 2, y + 21); }
+    if (k === 'lake') { g.fillStyle = '#9ab'; g.fillText('BELL', x + (cw - 6) / 2, y + 21); }
+    if (here && ((T * 3) | 0) % 2) { g.fillStyle = '#d64541'; g.fillRect(x + cw - 14, y + 3, 4, 4); }
+  }
+  g.fillStyle = '#888'; g.font = '7px monospace';
+  g.fillText('Walk off any edge with a path to go there.', W / 2, H - 22);
+  g.fillText('SELECT or B to close', W / 2, H - 10);
 }
 function renderAttract() {
   // slow drifting lake under the menus
@@ -1169,7 +1268,7 @@ function staticNoise(a) {
 }
 function blit() {
   out.setTransform(1, 0, 0, 1, 0, 0);
-  const c = mode === 'play' || mode === 'dialog' || mode === 'paused' || mode === 'ending' ? C() : 0;
+  const c = mode === 'play' || mode === 'dialog' || mode === 'paused' || mode === 'ending' || mode === 'map' ? C() : 0;
   out.filter = c >= 3 ? 'saturate(0.45) contrast(1.1)' : c >= 2 ? 'saturate(0.8)' : 'none';
   if (tear > 0) {
     for (let y = 0; y < H; y += 8) {
