@@ -160,6 +160,20 @@
         .x-glitch { display: none; }
         .x-hero-px { display: none; }
       }
+
+      /* Jump bar: sticky, swipeable row of game chips. */
+      .jump { position: sticky; top: 0; z-index: 50; display: flex; gap: 8px; align-items: center; overflow-x: auto;
+        scrollbar-width: none; padding: 10px 2px; margin: 0 0 24px; background: var(--fill-primary-on);
+        box-shadow: 0 8px 12px -8px rgba(0,0,0,.6); }
+      .jump::-webkit-scrollbar { display: none; }
+      .jump__label { flex: none; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; opacity: .6; margin: 0 2px 0 6px; }
+      .jump__chip { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px 5px 5px; border-radius: 999px;
+        background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); color: inherit; text-decoration: none; font-size: 14px; white-space: nowrap; }
+      .jump__chip:hover, .jump__chip:focus-visible { background: rgba(255,255,255,.14); }
+      .jump__chip img { width: 26px; height: 26px; border-radius: 7px; object-fit: cover; }
+      .cards > [id] { scroll-margin-top: 72px; }
+      html { scroll-behavior: smooth; }
+      @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
     </style>
     <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#1d1d1f">
@@ -177,54 +191,57 @@
             <h1>Games &amp; Apps</h1>
             <p class="muted">Stuff I made. Bugs included, on purpose this time.</p>
           </div>
+          <nav class="jump" aria-label="Jump to a game">
+            <span class="jump__label">Games</span><a class="jump__chip" href="#speedrunghost"><img src="speedrunghost.png" alt="" />Speedrun Ghost</a><a class="jump__chip" href="#commentsection"><img src="commentsection.png" alt="" />Comment Section</a><a class="jump__chip" href="#lowbattery"><img src="lowbattery.png" alt="" />Low Battery</a><a class="jump__chip" href="#secondhand"><img src="secondhand.png" alt="" />Secondhand</a><a class="jump__chip" href="#patchnotes"><img src="patchnotes.png" alt="" />Patch Notes</a><a class="jump__chip" href="#dejaglitch"><img src="dejaglitch.png" alt="" />Déjà Glitch</a><a class="jump__chip" href="#bugsquash"><img src="bugsquash.png" alt="" />Bug Squash</a><a class="jump__chip" href="#dealercraft"><img src="dealercraft.png" alt="" />DealerCraft</a><span class="jump__label">Apps</span><a class="jump__chip" href="#theclaww"><img src="theclaww.png" alt="" />The Claww</a><a class="jump__chip" href="#hellorgb"><img src="hellorgb.png" alt="" />Hello RGB</a>
+          </nav>
           <div class="cards">
-            <div class="x-rgb">
+            <div class="x-rgb" id="speedrunghost">
               <figure class="cards__media"><img src="speedrunghost.png" alt="Speedrun Ghost icon" /></figure>
               <h3>Speedrun Ghost</h3>
               <p class="muted">Race the ghost of your best run. Every world, it cheats a little more. Then it stops racing and starts chasing.</p>
               <div class="links"><a class="btn x-rgb" href="../speedrunghost/index.html">Play in browser</a><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/SpeedrunGhost/releases/latest/download/SpeedrunGhost.apk">Android app</a><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/SpeedrunGhost" target="_blank" rel="noopener">Source</a></div>
             </div>
-            <div class="x-rgb">
+            <div class="x-rgb" id="commentsection">
               <figure class="cards__media"><img src="commentsection.png" alt="Comment Section icon" /></figure>
               <h3>Comment Section</h3>
               <p class="muted">A platformer played live. Chat votes on what happens next: gravity flips, reversed controls, surprise enemies. Donations save you.</p>
               <div class="links"><a class="btn x-rgb" href="../commentsection/index.html">Play in browser</a><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/CommentSection/releases/latest/download/CommentSection.apk">Android app</a><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/CommentSection" target="_blank" rel="noopener">Source</a></div>
             </div>
-            <div class="x-rgb">
+            <div class="x-rgb" id="lowbattery">
               <figure class="cards__media"><img src="lowbattery.png" alt="Low Battery icon" /></figure>
               <h3>Low Battery</h3>
               <p class="muted">Locked in a bus depot after the last bus. Your flashlight runs on your real phone battery. Zombies follow the light, and something worse lives in the dark.</p>
               <div class="links"><a class="btn x-rgb" href="../lowbattery/index.html">Play in browser</a><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/LowBattery/releases/latest/download/LowBattery.apk">Android app</a><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/LowBattery" target="_blank" rel="noopener">Source</a></div>
             </div>
-            <div class="x-rgb">
+            <div class="x-rgb" id="secondhand">
               <figure class="cards__media"><img src="secondhand.png" alt="Secondhand icon" /></figure>
               <h3>Secondhand</h3>
               <p class="muted">A $1 cartridge from a yard sale. Save file 1 belongs to someone else. The longer you play, the more it knows about you.</p>
-              <div class="links"><a class="btn x-rgb" href="../secondhand/index.html">Play in browser</a><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/Secondhand" target="_blank" rel="noopener">Source</a></div>
+              <div class="links"><a class="btn x-rgb" href="../secondhand/index.html">Play in browser</a><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/Secondhand/releases/latest/download/Secondhand.apk">Android app</a><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/Secondhand" target="_blank" rel="noopener">Source</a></div>
             </div>
-            <div class="x-rgb">
+            <div class="x-rgb" id="patchnotes">
               <figure class="cards__media"><img src="patchnotes.png" alt="Patch Notes icon" /></figure>
               <h3>Patch Notes</h3>
               <p class="muted">Every level is impossible unless you use glitches. Beat it, then the dev patches the glitch you used. Find a new one.</p>
-              <div class="links"><a class="btn x-rgb" href="../patchnotes/index.html">Play in browser</a><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/PatchNotes" target="_blank" rel="noopener">Source</a></div>
+              <div class="links"><a class="btn x-rgb" href="../patchnotes/index.html">Play in browser</a><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/PatchNotes/releases/latest/download/PatchNotes.apk">Android app</a><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/PatchNotes" target="_blank" rel="noopener">Source</a></div>
             </div>
-            <div class="x-rgb">
+            <div class="x-rgb" id="dejaglitch">
               <figure class="cards__media"><img src="dejaglitch.png" alt="Déjà Glitch icon" /></figure>
               <h3>Déjà Glitch</h3>
               <p class="muted">Stuck in a looping simulation. Spot the glitch and turn back, or keep walking. Dodge the Agents in slow-mo.</p>
               <div class="links"><a class="btn x-rgb" href="../dejaglitch/index.html">Play in browser</a><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/DejaGlitch/releases/latest/download/DejaGlitch.apk">Android app</a><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/DejaGlitch" target="_blank" rel="noopener">Source</a></div>
             </div>
-            <div class="x-rgb">
+            <div class="x-rgb" id="bugsquash">
               <figure class="cards__media"><img src="bugsquash.png" alt="Bug Squash icon" /></figure>
               <h3>Bug Squash</h3>
               <p class="muted">Tap the glitchy RGB bugs before they escape. Golden bugs pay big, red viruses cost you a life.</p>
               <div class="links"><a class="btn x-rgb" href="../bugsquash/index.html">Play in browser</a><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/BugSquash/raw/main/release/BugSquash.apk">Android app</a><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/BugSquash" target="_blank" rel="noopener">Source</a></div>
             </div>
-            <div class="x-rgb">
+            <div class="x-rgb" id="dealercraft">
               <figure class="cards__media"><img src="dealercraft.png" alt="DealerCraft icon" /></figure>
               <h3>DealerCraft</h3>
               <p class="muted">A blocky 3D farming game. Grow crops, craft food and sell it to villagers until you're a Tycoon. Plays on phone and PC.</p>
-              <div class="links"><a class="btn x-rgb" href="../dealercraft/index.html">Play in browser</a><a class="btn x-rgb" href="../dealercraft/DealerCraft.apk">Android app</a><a class="btn x-rgb" href="../dealercraft/beta/index.html">🧪 Join Play beta</a></div>
+              <div class="links"><a class="btn x-rgb" href="../dealercraft/index.html">Play in browser</a><a class="btn x-rgb" href="../dealercraft/DealerCraft.apk">Android app</a><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/DealerCraft" target="_blank" rel="noopener">Source</a><a class="btn x-rgb" href="../dealercraft/beta/index.html">🧪 Join Play beta</a></div>
             </div>
           </div>
         </section>
@@ -232,10 +249,16 @@
         <section class="section" id="apps">
           <div class="head">
             <p class="head__eyebrow">Apps</p>
-            <h2>Little Android apps.</h2>
+            <h2>Little apps.</h2>
           </div>
           <div class="cards">
-            <div class="x-rgb">
+            <div class="x-rgb" id="theclaww">
+              <figure class="cards__media"><img src="theclaww.png" alt="The Claww icon" /></figure>
+              <h3>The Claww</h3>
+              <p class="muted">My own AI chat app that runs right on your device. Chat, projects, home widgets, themes and animated wallpapers. On Android, Windows and Linux.</p>
+              <div class="links"><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/The-Claww/releases/latest/download/TheClaww.apk">Android app</a><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/The-Claww/releases/latest/download/TheClaww-windows-x64-setup.exe">Windows</a><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/The-Claww/releases/latest/download/TheClaww-linux-x86_64.AppImage">Linux</a><a class="btn x-rgb" href="https://github.com/BuggyGamesYT/The-Claww" target="_blank" rel="noopener">Source</a></div>
+            </div>
+            <div class="x-rgb" id="hellorgb">
               <figure class="cards__media"><img src="hellorgb.png" alt="Hello RGB icon" /></figure>
               <h3>Hello RGB</h3>
               <p class="muted">A tiny rainbow "Hello World" app with a speed slider. Where it all started.</p>
