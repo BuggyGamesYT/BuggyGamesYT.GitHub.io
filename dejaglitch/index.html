@@ -13,7 +13,8 @@
     font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Roboto Mono", monospace; user-select: none; -webkit-user-select: none; touch-action: none; }
   #wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
   canvas { display: block; image-rendering: pixelated; background: #000; }
-  .panel { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,8,3,.78); z-index: 10; padding: 16px; }
+  .panel { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,8,3,.35); z-index: 10; padding: 16px; }
+  #rain { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 9; pointer-events: none; display: none; }
   .panel.show { display: flex; }
   .box { max-width: 560px; width: 100%; max-height: 92vh; overflow: auto; background: rgba(2,14,6,.94); border: 1px solid #1f7a3f; box-shadow: 0 0 30px rgba(40,255,120,.18); padding: 22px; border-radius: 10px; }
   h1 { margin: 0 0 4px; font-size: 40px; letter-spacing: 2px; color: #eafff0; text-shadow: -2px 0 #ff2a6d, 2px 0 #21f0ff, 0 0 18px rgba(60,255,140,.6); }
@@ -91,7 +92,7 @@
     <h2>How to play</h2>
     <ul>
       <li>You walk the same street over and over. Memorize it.</li>
-      <li><b>See a glitch?</b> Turn around and walk back out the way you came.</li>
+      <li><b>See a glitch?</b> Turn around and walk back out the way you came. You have to walk past the middle of the hall first.</li>
       <li><b>Nothing off?</b> Keep going out the far door.</li>
       <li>Right call: the loop counter goes up. Wrong call: it resets to 0.</li>
       <li>Fill each sector's counter to break through. Six sectors to escape.</li>
@@ -154,6 +155,7 @@
   </div>
 </div>
 
-<script src="game.js?v=1.8.2"></script>
+<canvas id="rain"></canvas>
+<script src="game.js?v=1.9"></script>
 </body>
 </html>

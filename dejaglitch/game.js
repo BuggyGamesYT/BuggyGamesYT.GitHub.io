@@ -45,8 +45,16 @@
     possess: { name: 'Stranger turns Agent', tier: 1 },
     ripple:  { name: 'Liquid wall', tier: 2 },
     spoon:   { name: 'Bending spoon', tier: 3 },
+    rain:    { name: 'Indoor rain', tier: 1 },
+    upside:  { name: 'Ceiling walker', tier: 1 },
+    giant:   { name: 'Giant stranger', tier: 1 },
+    pixel:   { name: 'Pixel melt', tier: 1 },
+    floatdoor: { name: 'Floating door', tier: 2 },
+    mirror:  { name: 'Your double', tier: 2 },
+    wire:    { name: 'Wireframe stranger', tier: 2 },
+    static:  { name: 'TV static wall', tier: 3 },
   };
-  const NG = 17;
+  const NG = 25;
   const LIGHTS = [200, 500, 800, 1100, 1400, 1700, 2000, 2300];
   const CODE_CH = '01<>{}#$%&*+=?/\\アイウエオカキクケコサシスセソ'.split('');
 
@@ -389,9 +397,9 @@
     jumpPressed = false;
     if (P.y > 0 || P.vy > 0) { P.y += P.vy * dt; P.vy -= 1500 * dt; if (P.y <= 0) { P.y = 0; P.vy = 0; P.jumps = 0; } if (P.y > 280) { P.y = 280; P.vy = Math.min(P.vy, 0); } }
     P.maxX = Math.max(P.maxX, P.x);
-    if (G.firstLoop && P.maxX < 700 && P.x < 110) {
+    if (P.maxX < 1300 && P.x < 110) {
       P.x = 110;
-      if (!seg.hinted && G.firstLoop && G.sector === 0) { seg.hinted = true; toast('WALK THE LOOP FIRST', 'Look around, then decide.', 2); }
+      if (!seg.hinted) { seg.hinted = true; toast('LOOK FIRST', 'Walk past the middle of the hall before you turn back.', 2.2); }
     }
     P.hist.push({ x: P.x, y: P.y }); if (P.hist.length > 45) P.hist.shift();
     if (P.inv > 0) P.inv -= dt;
@@ -402,7 +410,7 @@
     cam += (clamp(P.x - W * 0.42, 0, L - W) - cam) * Math.min(1, dt * 8);
 
     // walker
-    walker.x -= 55 * wdt; walker.phase += wdt * 7;
+    walker.x -= 95 * wdt; walker.phase += wdt * 7;
 
     // bullets
     for (let i = bullets.length - 1; i >= 0; i--) {
@@ -416,11 +424,12 @@
     // payphone
     if (!TRACE() && G.sector === 5 && Math.floor(seg.t * 1.2) % 2 === 0 && Math.abs(P.x - (L - 190)) < 500) { if (!seg.rang || seg.t - seg.rang > .8) { seg.rang = seg.t; sfx.ring(); } }
 
-    // cat
+    // cat (on the glitch, a copy walks the same path right behind it)
+    if (seg.anomaly === 'cat' && cat.st === 'walk' && !cat.rep && cat.x < 700 && !cat.twin) { cat.twin = { x: 1050, phase: 0 }; G.flash = Math.max(G.flash, .25); tone(140, .25, 'square', .04, 70); }
+    if (cat.twin) { cat.twin.x -= 120 * wdt; cat.twin.phase += wdt * 14; }
     if (cat.st === 'wait' && P.x > 520) { cat.st = 'walk'; cat.x = 1050; cat.a = 1; }
-    else if (cat.st === 'walk') { cat.x -= 75 * wdt; cat.phase += wdt * 14; if (cat.x < 820) { cat.st = 'fade'; cat.t = 0; } }
-    else if (cat.st === 'fade') { cat.t += wdt; cat.a = 1 - cat.t / .5; if (cat.t > .5) { cat.st = 'gone'; cat.t = 0; } }
-    else if (cat.st === 'gone' && seg.anomaly === 'cat') { cat.t += wdt; if (cat.t > .5) { cat.st = 'walk'; cat.x = 1050; cat.a = 1; cat.rep = true; G.flash = Math.max(G.flash, .25); tone(140, .25, 'square', .04, 70); } }
+    else if (cat.st === 'walk') { cat.x -= 120 * wdt; cat.phase += wdt * 14; if (cat.x < -60) { cat.st = 'gone'; cat.t = 0; } }
+    else if (false) { cat.t += wdt; if (cat.t > .1) { cat.st = 'walk'; cat.x = 1050; cat.a = 1; cat.rep = true; G.flash = Math.max(G.flash, .25); tone(140, .25, 'square', .04, 70); } }
 
     // agents
     const spd = (110 + G.sector * 14) * AG().sp;
@@ -515,6 +524,9 @@
         ctx.beginPath(); ctx.ellipse(1040, 250, r * 1.5, r * .7, 0, 0, 7); ctx.stroke();
       }
     }
+    if (A === 'static') { for (let i = 0; i < 260; i++) { const v = Math.random() * 255 | 0; ctx.fillStyle = `rgb(${v},${v},${v})`; ctx.fillRect(1480 + Math.random() * 220, 140 + Math.random() * 170, 6, 4); } }
+    if (A === 'pixel') { for (let gx = 0; gx < 8; gx++) for (let gy = 0; gy < 7; gy++) { const k = (gx * 7 + gy * 13 + Math.floor(t * 3)) % 5; ctx.fillStyle = ['#ff3dd4', '#3dff86', '#222', th.wall2, '#00e5ff'][k]; ctx.fillRect(1780 + gx * 28, 160 + gy * 28 + gy * gy * 2 + Math.sin(t * 2 + gx) * 4, 28, 28); } }
+    if (A === 'floatdoor') { const fy = 150 + Math.sin(t * 1.5) * 18; ctx.fillStyle = '#5a3b22'; ctx.fillRect(1320, fy, 64, 130); ctx.fillStyle = '#d9b36a'; ctx.fillRect(1370, fy + 66, 6, 6); ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(1352, FY + 1, 34 - Math.sin(t * 1.5) * 4, 5, 0, 0, 7); ctx.fill(); }
     // floor
     ctx.fillStyle = th.floor; ctx.fillRect(x0, FLOOR, x1 - x0, H - FLOOR);
     ctx.fillStyle = th.fl2;
@@ -643,6 +655,7 @@
     // walker
     const wo = { coat: '#6d6f73', pants: '#333', skin: '#e1b894', hair: '#5a3b22', face: -1, long: true, phase: walker.phase };
     if (A === 'tpose') { wo.tpose = true; }
+    if (A === 'wire') Object.assign(wo, { coat: 'rgba(61,255,134,.25)', pants: 'rgba(61,255,134,.25)', skin: 'rgba(61,255,134,.4)', hair: 'rgba(61,255,134,.4)' });
     if (A === 'clip') wo.sunk = 46;
     if (A !== 'clip') shadow(walker.x, 16);
     const poss = A === 'possess' && (t % 2.4) > 1.2;
@@ -652,7 +665,12 @@
       for (let k = 0; k < 7; k++) ctx.fillRect(walker.x - 24 + ((k * 13 + Math.floor(t * 30) * 7) % 48), FY - 120 + ((k * 29 + Math.floor(t * 25) * 11) % 120), 3 + (k % 3) * 4, 3);
     }
     if (A === 'possess' && Math.abs((t % 2.4) - 1.2) < .08) { ctx.save(); ctx.globalAlpha = .55; ctx.translate(-5, 0); person(walker.x, FY, Object.assign({}, wo, { coat: '#3dff86', pants: '#3dff86', skin: '#3dff86', hair: '#3dff86' })); ctx.restore(); }
-    person(walker.x, FY, wo);
+    if (A === 'upside') { ctx.save(); ctx.translate(walker.x, 100); ctx.scale(1, -1); ctx.translate(-walker.x, -FY); person(walker.x, FY, wo); ctx.restore(); }
+    else if (A === 'giant') { ctx.save(); ctx.translate(walker.x, FY); ctx.scale(2.1, 2.1); ctx.translate(-walker.x, -FY); person(walker.x, FY, wo); ctx.restore(); }
+    else person(walker.x, FY, wo);
+    if (A === 'wire') { ctx.strokeStyle = '#3dff86'; ctx.lineWidth = 2; ctx.strokeRect(walker.x - 12, FY - 86, 24, 86); ctx.beginPath(); ctx.moveTo(walker.x - 12, FY - 86); ctx.lineTo(walker.x + 12, FY); ctx.moveTo(walker.x + 12, FY - 86); ctx.lineTo(walker.x - 12, FY); ctx.stroke(); }
+    if (A === 'mirror' && P) { const mx = P.x + 340; const mo = { coat: '#111', pants: '#111', skin: '#e1b894', hair: '#141414', shades: '#000', long: true, face: -(P.face || 1), phase: P.phase }; shadow(mx, 16); ctx.save(); ctx.globalAlpha = .9; person(mx, FY - P.y, mo); ctx.restore(); }
+    if (cat.twin) { drawCat(cat.twin.x, 1, cat.twin.phase, '#3dff86'); drawCat(cat.twin.x, .85, cat.twin.phase); }
     if (A === 'clones') { shadow(walker.x + 44, 16); person(walker.x + 44, FY, wo); }
 
     // cat
@@ -664,6 +682,7 @@
       }
       drawCat(cat.x, cat.a, cat.phase);
     }
+    if (seg.anomaly === 'rain') { ctx.strokeStyle = 'rgba(150,200,255,.7)'; ctx.lineWidth = 2; for (let i = 0; i < 70; i++) { const rx = 1150 + (i * 53) % 420, ry = 100 + ((seg.t * 520 + i * 97) % (FLOOR - 100)); ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx - 3, ry + 16); ctx.stroke(); } ctx.fillStyle = 'rgba(150,200,255,.3)'; ctx.fillRect(1150, FY - 3, 420, 5); }
 
     ctx.restore();
   }
@@ -765,7 +784,7 @@
 
   function anomalyX() {
     const A = seg.anomaly;
-    const m = { cat: cat.st === 'gone' || cat.st === 'wait' ? 950 : cat.x, clones: walker.x + 22, code: 915, missing: 1910, tpose: walker.x, clip: walker.x, popin: 1400, eyes: 378, float: 1650, sign: 2230, lights: 1400, door: 645, clock: 1150, shadow: P.x, possess: walker.x, ripple: 1040, spoon: 2060 };
+    const m = { cat: cat.st === 'gone' || cat.st === 'wait' ? 950 : cat.x, clones: walker.x + 22, code: 915, missing: 1910, tpose: walker.x, clip: walker.x, popin: 1400, eyes: 378, float: 1650, sign: 2230, lights: 1400, door: 645, clock: 1150, shadow: P.x, possess: walker.x, ripple: 1040, spoon: 2060, rain: 1360, upside: walker.x, giant: walker.x, pixel: 1890, floatdoor: 1352, mirror: P.x + 340, wire: walker.x, static: 1590 };
     return A ? m[A] : null;
   }
   function post(dt) {
@@ -1176,6 +1195,19 @@
     drawToast();
   }
 
+  // full-screen code rain behind the menus
+  const rc = $('rain'), rx = rc.getContext('2d'); let rcols = [], rw = 0, rh = 0;
+  function rainFit() { rw = rc.width = innerWidth; rh = rc.height = innerHeight; rcols = []; for (let i = 0; i < rw / 16; i++) rcols.push({ y: rnd(-rh, 0), s: rnd(90, 260) }); rx.fillStyle = '#000'; rx.fillRect(0, 0, rw, rh); }
+  addEventListener('resize', rainFit); rainFit();
+  function drawRain(dt) {
+    rx.fillStyle = 'rgba(0,6,2,.18)'; rx.fillRect(0, 0, rw, rh);
+    rx.font = '16px monospace';
+    rcols.forEach((c, i) => {
+      c.y += c.s * dt;
+      if (c.y > rh + 300) { c.y = rnd(-300, 0); c.s = rnd(90, 260); }
+      for (let r = 0; r < 4; r++) { rx.fillStyle = r === 0 ? '#d8ffe4' : `rgba(61,255,134,${.75 - r * .18})`; rx.fillText(CODE_CH[Math.floor(Math.random() * CODE_CH.length)], i * 16, c.y - r * 18); }
+    });
+  }
   // ---------- loop ----------
   let last = performance.now();
   function frame(now) {
@@ -1197,6 +1229,9 @@
       ctx.restore();
       drawHUD(); post(dt);
     } else drawTitleBg(dt);
+    const menu = G.mode !== 'play' && G.mode !== 'paused';
+    rc.style.display = menu ? 'block' : 'none';
+    if (menu) drawRain(dt);
     requestAnimationFrame(frame);
   }
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
