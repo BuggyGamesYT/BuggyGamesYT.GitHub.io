@@ -113,6 +113,7 @@
   <button class="slot" id="slot1"></button>
   <button class="slot" id="slot2"></button>
   <button class="slot" id="slot3"></button>
+  <button class="slot" id="slot4" style="display:none"></button>
   <div id="filesMsg"></div>
   <div class="row"><button class="b alt" id="helpBtn">Controls</button><button class="b alt" id="eraseBtn">Erase cartridge</button></div>
   <div id="confirm"><p>Erase every file on the cartridge?</p><div class="row"><button class="b" id="eraseYes">Erase</button><button class="b alt" id="eraseNo">Keep</button></div></div>
@@ -127,7 +128,7 @@
 
 <div class="panel" id="pausePanel"><div class="box">
   <h2>PAUSED</h2>
-  <p>Bell pieces: <span id="pShards"></span> · Deaths: <span id="pDeaths"></span></p>
+  <p>Bell pieces: <span id="pShards"></span> · Deaths: <span id="pDeaths"></span><br>Diary pages: <span id="pPages"></span> · Hearts: <span id="pHearts"></span> · Deepest: <span id="pDeep"></span></p>
   <div class="row"><button class="b" id="pResume">Resume</button><button class="b alt" id="pSound">Sound: on</button></div>
   <div class="row"><button class="b alt padOpt">Phone controls: D-pad</button></div>
   <div class="row"><button class="b alt" id="pHelp">Controls</button><button class="b alt" id="pQuit">Save &amp; quit</button></div>
@@ -138,13 +139,15 @@
   <ul class="help">
     <li><span class="k">←↑↓→</span> or <span class="k">WASD</span> walk</li>
     <li><span class="k">Z</span> A: talk, read, next line</li>
+    <li>Hold <span class="k">Z</span> (A) while walking to run</li>
     <li><span class="k">X</span> <span class="k">Space</span> B: swing your sword</li>
     <li><span class="k">Enter</span> <span class="k">Esc</span> START: pause</li>
     <li><span class="k">Shift</span> <span class="k">Tab</span> SELECT: map</li>
     <li><span class="k">M</span> mute</li>
-    <li>Phone: D-pad or joystick (switch below or in the pause menu), A, B, START, SELECT.</li>
+    <li>Phone: D-pad or joystick (switch below or in the pause menu), A, B, START, SELECT. Hold A while moving to run.</li>
     <li>To change areas, walk off the edge of the screen where a path or opening leads out.</li>
-    <li>Find the three bell pieces. Don't let the statue get behind you.</li>
+    <li>Find the three bell pieces in the Hollow, the Cave and the Old Mill. Keys open locked doors. Walk into blocks to push them.</li>
+    <li>Don't let the statue get behind you.</li>
   </ul>
   <div class="row"><button class="b alt padOpt">Phone controls: D-pad</button></div>
   <button class="b" id="helpClose">OK</button>
@@ -155,11 +158,12 @@
   <h2>THE END?</h2>
   <p>Wren went home.<br>You're the one under the dock now.</p>
   <p id="endStats"></p>
-  <p>Thanks for playing version 1.</p>
+  <p>THE DEEP is open on the file screen.<br>How far down can you go?</p>
   <button class="b" id="endTitle">Back to the files</button>
   <p class="credit">A game by Buggy Games YT</p>
 </div></div>
 
+<script src="world.js"></script>
 <script src="game.js"></script>
 </body>
 </html>
