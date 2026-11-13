@@ -107,20 +107,20 @@
   function stopHum() { if (hum) { try { hum.o.stop(); hum.o2.stop(); } catch (e) {} hum = null; } }
 
   // ---------- input ----------
-  const keys = { left: false, right: false, jump: false, slow: false };
-  const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'jump', KeyW: 'jump', KeyZ: 'jump', Space: 'slow', ShiftLeft: 'slow', ShiftRight: 'slow' };
+  const keys = { left: false, right: false, jump: false, slow: false, sight: false };
+  const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'jump', KeyW: 'jump', KeyZ: 'jump', Space: 'slow', ShiftLeft: 'slow', ShiftRight: 'slow', KeyC: 'sight', KeyE: 'sight' };
   addEventListener('keydown', e => {
     const k = KEYMAP[e.code];
-    if (k) { if (k === 'jump' && !keys.jump) jumpPressed = true; keys[k] = true; e.preventDefault(); }
+    if (k) { if (k === 'jump' && !keys.jump) jumpPressed = true; if (k === 'sight' && !keys.sight) sightPressed = true; keys[k] = true; e.preventDefault(); }
     if (e.code === 'KeyP' || e.code === 'Escape') { if (G.mode === 'play') pause(); else if (G.mode === 'paused') resume(); }
     if (e.code === 'KeyM') toggleMute();
     if ((e.code === 'Enter') && G.mode === 'title' && !document.querySelector('#how.show,#about.show,#pills.show')) startGame();
   });
   addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) keys[k] = false; });
-  let jumpPressed = false;
+  let jumpPressed = false, sightPressed = false;
   document.querySelectorAll('#touch button').forEach(b => {
     const k = b.dataset.k;
-    const on = e => { e.preventDefault(); ac(); if (k === 'jump' && !keys.jump) jumpPressed = true; keys[k] = true; b.classList.add('on'); try { b.setPointerCapture(e.pointerId); } catch (_) {} };
+    const on = e => { e.preventDefault(); ac(); if (k === 'jump' && !keys.jump) jumpPressed = true; if (k === 'sight' && !keys.sight) sightPressed = true; keys[k] = true; b.classList.add('on'); try { b.setPointerCapture(e.pointerId); } catch (_) {} };
     const off = e => { e.preventDefault(); keys[k] = false; b.classList.remove('on'); };
     b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off);
     b.addEventListener('pointercancel', off); b.addEventListener('lostpointercapture', off);
@@ -132,7 +132,7 @@
   // ---------- state ----------
   const G = { mode: 'title', sector: 0, streak: 0, integrity: 3, patched: new Set(), anomaly: null, last: null,
     slow: 100, slowOn: false, time: 0, caught: 0, mistakes: 0, found: 0, flash: 0, shake: 0, toast: '', toastT: 0, toast2: '', firstLoop: true, hurtT: 0 };
-  let P, seg, walker, cat, agents, bullets = [], rings = [], cam = 0, codeCols = [];
+  let P, seg, walker, cat, agents, hunters = [], bullets = [], rings = [], cam = 0, codeCols = [];
 
   function resetCodeCols() { codeCols = []; for (let i = 0; i < W / 16; i++) codeCols.push({ y: rnd(-H, 0), s: rnd(80, 220) }); }
   resetCodeCols();
@@ -156,7 +156,10 @@
   }
 
   function newSegment() {
-    seg = { t: 0, anomaly: G.anomaly, hinted: false };
+    if (TRACE()) G.sector = Math.min(5, Math.floor(G.trace / 20));
+    seg = { t: 0, anomaly: G.anomaly, hinted: false, phoneX: G.hardline ? rnd(900, 2200) : null };
+    hunters = [];
+    if (TRACE() && G.trace >= 40) for (let i = 0; i < (G.trace >= 75 ? 2 : 1); i++) hunters.push({ x: 1000 + i * 800 + rnd(0, 300), t: rnd(0, 2), bob: rnd(0, 6) });
     P = { x: 130, y: 0, vy: 0, jumps: 0, face: 1, maxX: 130, hist: [], phase: 0, inv: 0 };
     walker = { x: 2050, phase: 0 };
     cat = { x: 1050, st: 'wait', a: 1, t: 0, phase: 0 };
@@ -172,17 +175,38 @@
     if (diff !== 'blue' && diff !== 'red') { showPanel('pills'); return; }
     G.diff = diff;
     ac(); startHum();
+    Object.assign(G, { trace: 0, maxTrace: 0, hardline: false, lineT: 0, said: {}, sight: 2, sightT: 0 });
     Object.assign(G, { mode: 'play', sector: 0, streak: 0, integrity: maxHP(), anomaly: null, last: null, slow: 100, time: 0, caught: 0, mistakes: 0, found: 0, flash: .6, firstLoop: true });
     G.patched = new Set();
     newSegment();
     hidePanels();
     if (isTouch) $('touch').classList.add('on');
     $('pauseBtn').classList.add('on');
-    toast('SECTOR 1 · ' + SECTOR_NAMES[0], 'Memorize this street. Then walk to the far door ▶', 4);
+    $('touch').classList.toggle('red', diff === 'red');
+    toast(diff === 'red' ? 'TRACE MODE · OPERATOR ONLINE' : 'SECTOR 1 · ' + SECTOR_NAMES[0], diff === 'red' ? 'Memorize this street. Glitches boost the trace on your real body.' : 'Memorize this street. Then walk to the far door ▶', 4);
     sfx.glitch();
   }
 
-  function maxHP() { return G.diff === 'blue' ? 5 : 3; }
+  function maxHP() { return 3; }
+  const TRACE = () => G.diff === 'red';
+  function addTrace(v) {
+    if (G.hardline) return;
+    const before = G.trace;
+    G.trace = clamp(G.trace + v, 0, 100);
+    [25, 50, 75].forEach(m => {
+      if (before < m && G.trace >= m && !G.said[m]) {
+        G.said[m] = 1;
+        toast('OPERATOR: TRACE ' + m + '%', m === 25 ? 'Keep feeding me glitches. Every one makes your signal louder.' : m === 50 ? 'Hunters are coming online. Watch their red scan beams.' : 'Almost locked. The Agents can feel it too.', 3.2);
+        sfx.ring();
+      }
+    });
+    if (G.trace >= 100) {
+      G.hardline = true; G.lineT = 45;
+      if (seg) seg.phoneX = clamp(P.x + (P.x > 1300 ? -1 : 1) * rnd(450, 700), 300, 2300);
+      toast('HARDLINE LOCATED', 'Your body is found. Reach the ringing phone in 45s to unplug.', 4);
+      sfx.sector();
+    }
+  }
   function decide(dir) {
     const a = G.anomaly, correct = a ? dir === 'back' : dir === 'forward';
     G.firstLoop = false;
@@ -191,19 +215,28 @@
       if (a) {
         G.patched.add(a); G.found++;
         if (!best.found.includes(a)) { best.found.push(a); save(); }
-        toast('GLITCH USED: ' + ANOM[a].name.toUpperCase(), 'The Agents patched it. It won\'t come back.');
-      } else toast('CLEAN LOOP', 'Nothing was off. Good call.', 1.8);
+      }
       sfx.good();
-      if (G.streak >= REQ[G.sector]) {
-        G.sector++; G.streak = 0; G.firstLoop = true; G.integrity = maxHP();
-        if (G.sector > best.sector && G.sector < REQ.length) { best.sector = G.sector; save(); }
-        if (G.sector >= REQ.length) return win();
-        toast('SECTOR ' + (G.sector + 1) + ' · ' + SECTOR_NAMES[G.sector], G.sector === 1 ? 'Agents are here now. Jump them (tap jump again in the air).' : G.sector === 2 && G.diff === 'red' ? 'Agents shoot now. Slow-mo and jump the bullets.' : G.sector === 5 ? 'The phone is ringing. Get to it.' : 'Memorize the new look.', 4);
-        sfx.sector();
+      if (TRACE()) {
+        const gain = (a ? 12 : 5) + Math.min(G.streak, 5);
+        if (a) { G.sight = Math.min(3, G.sight + 1); toast('GLITCH USED: ' + ANOM[a].name.toUpperCase(), `Signal spike: +${gain}% trace. Agents patched it.`); }
+        else toast('CLEAN LOOP', `+${gain}% trace.`, 1.8);
+        addTrace(gain);
+      } else {
+        if (a) toast('GLITCH USED: ' + ANOM[a].name.toUpperCase(), 'The Agents patched it. It won\'t come back.');
+        else toast('CLEAN LOOP', 'Nothing was off. Good call.', 1.8);
+        if (G.streak >= REQ[G.sector]) {
+          G.sector++; G.streak = 0; G.firstLoop = true; G.integrity = maxHP();
+          if (G.sector > best.sector && G.sector < REQ.length) { best.sector = G.sector; save(); }
+          if (G.sector >= REQ.length) return win();
+          toast('SECTOR ' + (G.sector + 1) + ' · ' + SECTOR_NAMES[G.sector], G.sector === 1 ? 'Agents are here now. Jump them (tap jump again in the air).' : G.sector === 2 ? 'Agents shoot now. Slow-mo and jump the bullets.' : G.sector === 5 ? 'The phone is ringing. Get to it.' : 'Memorize the new look.', 4);
+          sfx.sector();
+        }
       }
     } else {
       G.streak = 0; G.mistakes++;
-      toast('WRONG CALL · LOOP RESET', a ? 'You walked past: ' + ANOM[a].name + '.' : 'Nothing was glitched that time.', 3);
+      if (TRACE()) { addTrace(-10); toast('WRONG CALL · SIGNAL LOST', (a ? 'You walked past: ' + ANOM[a].name + '.' : 'Nothing was glitched that time.') + ' -10% trace.', 3); }
+      else toast('WRONG CALL · LOOP RESET', a ? 'You walked past: ' + ANOM[a].name + '.' : 'Nothing was glitched that time.', 3);
       sfx.bad(); G.shake = .4;
     }
     G.last = a;
@@ -215,22 +248,37 @@
   function caught() {
     G.integrity--; G.caught++; G.shake = .5; G.hurtT = .5; sfx.hit();
     if (G.integrity <= 0) {
+      if (TRACE()) return lose();
       G.integrity = maxHP(); G.streak = 0; G.firstLoop = true; G.anomaly = null;
       toast('SYSTEM RESET', 'The Agents wiped your progress in this sector.', 3);
-    } else toast('AGENT CONTACT', 'Integrity ' + G.integrity + '/' + maxHP() + '. Restarting this loop.', 2.4);
+    } else {
+      if (TRACE()) addTrace(-8);
+      toast('HIT', 'Integrity ' + G.integrity + '/' + maxHP() + '.' + (TRACE() ? ' -8% trace.' : '') + ' Restarting this loop.', 2.4);
+    }
     G.flash = .6;
-    const keep = G.anomaly; newSegment(); seg.anomaly = keep; P.inv = 1.2;
+    const keep = G.anomaly, px = seg.phoneX; newSegment(); seg.anomaly = keep; if (px) seg.phoneX = px; P.inv = 1.2;
   }
 
-  function win() {
+  function endScreen(title, html) {
     G.mode = 'end'; stopHum();
+    $('endTitle').textContent = title; $('endText').innerHTML = html;
+    showPanel('end'); $('touch').classList.remove('on'); $('pauseBtn').classList.remove('on');
+  }
+  function win() {
+    if (TRACE()) {
+      best.traceWins = (best.traceWins || 0) + 1;
+      if (!best.traceTime || G.time < best.traceTime) best.traceTime = G.time;
+      save(); sfx.sector();
+      return endScreen('Hardline answered. You\'re unplugged.', `Your body was found and disconnected from the simulation.<br>Time ${fmt(G.time)} · best ${fmt(best.traceTime)}<br>Glitches used: ${G.found}<br>Wrong calls: ${G.mistakes} · Hits: ${G.caught}<br>Glitch log: ${best.found.length}/${NG} found ever`);
+    }
     best.wins = (best.wins || 0) + 1;
     if (!best.time || G.time < best.time) best.time = G.time;
-    best.sector = REQ.length - 1; save();
-    $('endTitle').textContent = 'You answered the phone and glitched out.';
-    $('endText').innerHTML = `Time ${fmt(G.time)}<br>Glitches used: ${G.found}<br>Wrong calls: ${G.mistakes} · Agent hits: ${G.caught}<br>Pill: ${G.diff === 'blue' ? 'blue (easy)' : 'red'}<br>Glitch log: ${best.found.length}/${NG} found ever`;
-    showPanel('end'); $('touch').classList.remove('on'); $('pauseBtn').classList.remove('on');
-    sfx.sector();
+    best.sector = REQ.length - 1; save(); sfx.sector();
+    endScreen('You answered the phone and glitched out.', `Time ${fmt(G.time)}<br>Glitches used: ${G.found}<br>Wrong calls: ${G.mistakes} · Agent hits: ${G.caught}<br>Glitch log: ${best.found.length}/${NG} found ever`);
+  }
+  function lose() {
+    sfx.bad();
+    endScreen('Signal lost.', `The Agents got you before the trace locked.<br>Trace reached: ${Math.floor(G.maxTrace)}%<br>Time ${fmt(G.time)} · Glitches used: ${G.found}`);
   }
 
   // ---------- panels ----------
@@ -284,6 +332,27 @@
     G.slow = clamp(G.slow + (G.slowOn ? -32 : 14) * dt, 0, 100);
     const wdt = G.slowOn ? dt * 0.28 : dt;
     seg.t += wdt;
+    if (TRACE()) {
+      G.maxTrace = Math.max(G.maxTrace, G.trace);
+      if (!G.hardline) addTrace(0.3 * dt);
+      else {
+        G.lineT -= dt;
+        if (seg.phoneX && Math.abs(P.x - seg.phoneX) < 34 && P.y < 40) return win();
+        if (G.lineT <= 0) { G.hardline = false; G.trace = 70; G.said[75] = 0; seg.phoneX = null; toast('LINE CUT', 'The Agents cut the hardline. Trace dropped to 70%.', 3); sfx.bad(); }
+        else if (seg.phoneX && Math.floor(G.lineT * 1.2) % 2 === 0 && (!seg.rang || seg.t - seg.rang > .8)) { seg.rang = seg.t; sfx.ring(); }
+      }
+      if (sightPressed) {
+        if (G.sight > 0 && G.sightT <= 0) { G.sight--; G.sightT = 3; tone(220, .5, 'sine', .05, 600); }
+        else if (G.sightT <= 0) toast('NO CODE SIGHT LEFT', 'Use a glitch to earn another charge.', 1.6);
+      }
+      if (G.sightT > 0) G.sightT -= dt;
+      for (const h of hunters) {
+        h.x += Math.sign(P.x - h.x) * 70 * wdt; h.t += wdt; h.bob += wdt * 3;
+        const ph = h.t % 3.2;
+        if (P.inv <= 0 && ph > .8 && ph < 1.6 && Math.abs(P.x - h.x) < 26) { caught(); return; }
+      }
+    }
+    sightPressed = false;
 
     // player
     const mv = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
@@ -324,7 +393,7 @@
     }
     for (let i = rings.length - 1; i >= 0; i--) { rings[i].t += dt; if (rings[i].t > .45) rings.splice(i, 1); }
     // payphone
-    if (G.sector === 5 && Math.floor(seg.t * 1.2) % 2 === 0 && Math.abs(P.x - (L - 190)) < 500) { if (!seg.rang || seg.t - seg.rang > .8) { seg.rang = seg.t; sfx.ring(); } }
+    if (!TRACE() && G.sector === 5 && Math.floor(seg.t * 1.2) % 2 === 0 && Math.abs(P.x - (L - 190)) < 500) { if (!seg.rang || seg.t - seg.rang > .8) { seg.rang = seg.t; sfx.ring(); } }
 
     // cat
     if (cat.st === 'wait' && P.x > 520) { cat.st = 'walk'; cat.x = 1050; cat.a = 1; }
@@ -333,8 +402,8 @@
     else if (cat.st === 'gone' && seg.anomaly === 'cat') { cat.t += wdt; if (cat.t > .7) { cat.st = 'walk'; cat.x = 1050; cat.a = 1; } }
 
     // agents
-    const spd = (110 + G.sector * 14) * (G.diff === 'blue' ? .8 : 1);
-    const shoots = G.diff === 'red' && G.sector >= 2;
+    const spd = 110 + G.sector * 14;
+    const shoots = G.sector >= 2;
     for (const a of agents) {
       const dx = P.x - a.x;
       if (a.st === 'idle' && Math.abs(dx) < 520) { a.st = 'chase'; a.rez = .5; sfx.glitch(); }
@@ -529,8 +598,9 @@
     ctx.fillStyle = '#6b3d1f'; ctx.font = 'bold 9px monospace'; ctx.fillText('CAFE', 2049, 222);
 
     // payphone (final sector)
-    if (G.sector === 5) {
-      const px = L - 190, ringing = Math.floor(t * 1.2) % 2 === 0;
+    const phoneAt = TRACE() ? seg.phoneX : (G.sector === 5 ? L - 190 : null);
+    if (phoneAt) {
+      const px = phoneAt, ringing = Math.floor(t * 1.2) % 2 === 0;
       ctx.fillStyle = '#1b1f22'; ctx.fillRect(px - 26, 250, 52, FLOOR - 250 + 30);
       ctx.fillStyle = '#c0c6cc'; ctx.fillRect(px - 18, 270, 36, 70);
       ctx.fillStyle = '#111'; ctx.fillRect(px - 14, 274, 10, 40);
@@ -608,6 +678,15 @@
       const k = r.t / .45; ctx.strokeStyle = `rgba(61,255,134,${1 - k})`; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.ellipse(r.x, FY - r.y, 14 + k * 26, 4 + k * 6, 0, 0, 7); ctx.stroke();
     }
+    for (const h of hunters) {
+      const ph = h.t % 3.2, hy = 190 + Math.sin(h.bob) * 8;
+      if (ph > .2 && ph < .8 && Math.floor(h.t * 12) % 2) { ctx.fillStyle = 'rgba(255,40,60,.18)'; ctx.fillRect(h.x - 26, hy, 52, FY - hy); }
+      if (ph >= .8 && ph < 1.6) { ctx.fillStyle = 'rgba(255,40,60,.42)'; ctx.fillRect(h.x - 26, hy, 52, FY - hy); ctx.fillStyle = 'rgba(255,200,200,.6)'; ctx.fillRect(h.x - 3, hy, 6, FY - hy); }
+      ctx.strokeStyle = '#1a1414'; ctx.lineWidth = 3;
+      for (let k = 0; k < 6; k++) { const ox = -20 + k * 8; ctx.beginPath(); ctx.moveTo(h.x + ox, hy + 6); ctx.quadraticCurveTo(h.x + ox + Math.sin(h.bob + k) * 10, hy + 30, h.x + ox + Math.sin(h.bob * 1.3 + k) * 6, hy + 52); ctx.stroke(); }
+      ctx.fillStyle = '#2a2222'; ctx.beginPath(); ctx.ellipse(h.x, hy, 26, 16, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = '#ff2a44'; for (let k = -1; k <= 1; k++) { ctx.beginPath(); ctx.arc(h.x + k * 10, hy - 2, 3.5, 0, 7); ctx.fill(); }
+    }
     // player shadow
     let sx = P.x;
     if (seg.anomaly === 'shadow' && P.hist.length) sx = P.hist[0].x;
@@ -625,13 +704,18 @@
   function drawHUD() {
     ctx.fillStyle = 'rgba(0,10,4,.6)'; ctx.fillRect(10, 10, 300, 62);
     ctx.fillStyle = '#3dff86'; ctx.font = 'bold 15px monospace';
-    ctx.fillText(`SECTOR ${G.sector + 1}/6  LOOP ${G.streak}/${REQ[G.sector]}`, 20, 31);
+    if (TRACE()) {
+      ctx.fillText(G.hardline ? `HARDLINE ${Math.max(0, Math.ceil(G.lineT))}s` : `TRACE ${Math.floor(G.trace)}%`, 20, 31);
+      ctx.fillStyle = '#123d22'; ctx.fillRect(170, 22, 130, 10);
+      ctx.fillStyle = G.hardline ? (Math.floor(G.time * 4) % 2 ? '#ff4d6d' : '#ffd36b') : '#ff4d6d'; ctx.fillRect(170, 22, 130 * (G.hardline ? G.lineT / 45 : G.trace / 100), 10);
+    } else ctx.fillText(`SECTOR ${G.sector + 1}/6  LOOP ${G.streak}/${REQ[G.sector]}`, 20, 31);
     ctx.font = '11px monospace'; ctx.fillStyle = '#9fe8b8'; ctx.fillText('INTEGRITY', 20, 50);
     for (let i = 0; i < maxHP(); i++) { ctx.fillStyle = i < G.integrity ? '#3dff86' : '#123d22'; ctx.fillRect(92 + i * 16, 41, 12, 10); }
     ctx.fillStyle = '#9fe8b8'; ctx.fillText('SLOW-MO', 160, 50);
     ctx.fillStyle = '#123d22'; ctx.fillRect(220, 42, 80, 8);
     ctx.fillStyle = G.slowOn ? '#d8ffe4' : '#3dff86'; ctx.fillRect(220, 42, 80 * G.slow / 100, 8);
     ctx.fillStyle = '#5fd88a'; ctx.fillText(`PATCHED ${G.patched.size}`, 20, 66);
+    if (TRACE()) { ctx.fillText('CODE SIGHT', 160, 66); for (let i = 0; i < 3; i++) { ctx.fillStyle = i < G.sight ? '#d8ffe4' : '#123d22'; ctx.fillRect(240 + i * 16, 58, 10, 8); } }
     if (G.toastT > 0) {
       const a = Math.min(1, G.toastT * 2);
       ctx.globalAlpha = a; ctx.textAlign = 'center';
@@ -644,7 +728,28 @@
     if (P.maxX >= 700 && P.x < 400) { ctx.fillStyle = 'rgba(255,176,0,.8)'; ctx.font = 'bold 13px monospace'; ctx.fillText('◀ turn back = "I saw a glitch"', 20, 92); }
   }
 
+  function anomalyX() {
+    const A = seg.anomaly;
+    const m = { cat: cat.st === 'gone' || cat.st === 'wait' ? 950 : cat.x, clones: walker.x + 22, code: 915, missing: 1910, tpose: walker.x, clip: walker.x, popin: 1400, eyes: 378, float: 1650, sign: 2230, lights: 1400, door: 645, clock: 1150, shadow: P.x, possess: walker.x, ripple: 1040, spoon: 2060 };
+    return A ? m[A] : null;
+  }
   function post(dt) {
+    if (G.sightT > 0) {
+      ctx.fillStyle = 'rgba(0,26,10,.62)'; ctx.fillRect(0, 0, W, H);
+      ctx.font = '12px monospace';
+      for (let c = 0; c < W / 14; c++) { ctx.fillStyle = 'rgba(61,255,134,.35)'; ctx.fillText(CODE_CH[(c * 7 + Math.floor(G.time * 10)) % CODE_CH.length], c * 14, (G.time * (60 + (c * 37) % 90) + c * 41) % H); }
+      const ax = anomalyX();
+      if (ax !== null && ax !== undefined) {
+        const sx = ax - cam, pulse = 20 + Math.sin(G.time * 8) * 6;
+        ctx.strokeStyle = '#eafff0'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(clamp(sx, 20, W - 20), 280, pulse + 30, 0, 7); ctx.stroke();
+        ctx.fillStyle = '#eafff0'; ctx.font = 'bold 14px monospace'; ctx.textAlign = 'center';
+        ctx.fillText(sx < 0 ? '◀ ANOMALY' : sx > W ? 'ANOMALY ▶' : 'ANOMALY', clamp(sx, 70, W - 70), 230 - pulse); ctx.textAlign = 'left';
+      } else { ctx.fillStyle = '#9fe8b8'; ctx.font = 'bold 18px monospace'; ctx.textAlign = 'center'; ctx.fillText('SIGNAL CLEAN', W / 2, 280); ctx.textAlign = 'left'; }
+    }
+    if (TRACE() && G.hardline && seg.phoneX) {
+      const sx = seg.phoneX - cam;
+      if (sx < 0 || sx > W) { ctx.fillStyle = '#ffd36b'; ctx.font = 'bold 15px monospace'; ctx.textAlign = 'center'; ctx.fillText(sx < 0 ? '◀ RINGING' : 'RINGING ▶', sx < 0 ? 80 : W - 80, 250); ctx.textAlign = 'left'; }
+    }
     if (G.slowOn) {
       ctx.fillStyle = 'rgba(30,255,110,.10)'; ctx.fillRect(0, 0, W, H);
       const g = ctx.createRadialGradient(W / 2, H / 2, H * .3, W / 2, H / 2, H * .85);
