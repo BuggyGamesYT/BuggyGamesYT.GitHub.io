@@ -72,8 +72,11 @@
   const modal = document.getElementById('modal'), card = document.getElementById('card');
   const hud = document.getElementById('hud'), ctlL = document.getElementById('ctlL'), ctlR = document.getElementById('ctlR');
   const SAVE = 'patchnotes_v1';
-  let save = { unlocked: 0, best: {} };
+  let save = { unlocked: 0, best: {}, bugs: {} };
   try { save = Object.assign(save, JSON.parse(localStorage.getItem(SAVE) || '{}')); } catch (e) {}
+  save.best = save.best || {}; save.bugs = save.bugs || {};
+  const bugCount = () => Object.keys(save.bugs).filter(k => save.bugs[k] && +k < LEVELS.length).length;
+  const fmt = fr => (fr / 60).toFixed(2) + 's';
   const persist = () => { try { localStorage.setItem(SAVE, JSON.stringify(save)); } catch (e) {} };
 
   const VH = 17 * T;
@@ -159,7 +162,7 @@
       .map(k => `<span class="g ${live.has(k) ? 'live' : 'dead'}">${GLITCHES[k]}</span>`).join('') + '</div>';
   }
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const hintOf = L => usingTouch ? L.hint.replace('(Shift)', '(DASH)').replace('(P)', '(⏸)').replace('(E)', '(GRAB)') : L.hint;
+  const hintOf = L => usingTouch ? L.hint.replace(/[Dd]ash \(Shift\)/g, 'DASH').replace(/Grab \(E\)/g, 'GRAB').replace(/\(Shift\)/g, '(DASH)').replace(/\(P\)/g, '(⏸)').replace(/\(E\)/g, '(GRAB)') : L.hint;
   const verOf = i => i === 0 ? '1.0.0' : LEVELS[i - 1].notes.ver;
   const controlsHelp = () => usingTouch
     ? '<p class="muted">◀ ▶ move · JUMP · DASH · GRAB · ⏸ pause</p>'
@@ -180,6 +183,7 @@
         <button class="btn${cont ? ' ghost' : ' green'}" id="bNew" ${cont ? '' : 'data-default'}>${save.unlocked ? 'New game' : 'Play'}</button>
         <button class="btn ghost" id="bLv">Levels</button>
       </div>
+      <p class="muted" style="text-align:center">🐞 Hidden bugs found: ${bugCount()} / ${LEVELS.length}</p>
       ${controlsHelp()}
       ${IN_APP ? '' : '<div class="row"><a class="btn ghost" href="../games/index.html">← Games &amp; Apps</a></div>'}
       <p class="muted" style="text-align:center;margin-top:12px">A Buggy Games YT game</p>`);
@@ -190,8 +194,8 @@
 
   function showLevels() {
     state = 'title';
-    openModal(`<h2>Levels</h2><p class="muted">Beat a level to unlock the next build.</p>
-      <div class="lv">${LEVELS.map((L, i) => `<button class="btn ${i <= save.unlocked ? '' : 'ghost'}" data-l="${i}" ${i <= save.unlocked ? '' : 'disabled'}>${i === LEVELS.length - 1 ? 'FINAL' : i + 1}<br><span style="font-size:10px;font-weight:normal">${esc(L.name)}</span></button>`).join('')}</div>
+    openModal(`<h2>Levels</h2><p class="muted">Beat a level to unlock the next build. 🐞 marks levels where you found the hidden bug.</p>
+      <div class="lv">${LEVELS.map((L, i) => `<button class="btn ${i <= save.unlocked ? '' : 'ghost'}" data-l="${i}" ${i <= save.unlocked ? '' : 'disabled'}>${i === LEVELS.length - 1 ? 'FINAL' : i + 1}<br><span style="font-size:10px;font-weight:normal">${esc(L.name)}${save.bugs[i] ? ' 🐞' : ''}${save.best[i] ? '<br>' + fmt(save.best[i]) : ''}</span></button>`).join('')}</div>
       <div class="row"><button class="btn ghost" id="bBack" data-default>Back</button></div>`);
     card.querySelectorAll('[data-l]').forEach(b => b.onclick = () => startLevel(+b.dataset.l));
     bind('bBack', showTitle);
@@ -202,9 +206,10 @@
     const L = LEVELS[lvl], final = lvl === LEVELS.length - 1;
     openModal(`
       <p class="muted">${final ? 'FINAL LEVEL' : 'LEVEL ' + (lvl + 1) + ' / ' + (LEVELS.length - 1)} · build v${verOf(lvl)}</p>
-      <h2>${esc(L.name)}</h2>
+      <h2>${lvl === 10 ? '<span style="color:#ffd23f">CONTENT UPDATE 1.1</span><br>' : ''}${esc(L.name)}</h2>
       <div class="issue"><b>Known issue:</b> ${esc(hintOf(L))}</div>
       <p class="muted">Glitches in this build:</p>${glitchChips(G.live)}
+      <p class="muted">${save.bugs[lvl] ? '🐞 Hidden bug found' : '🐞 A hidden bug is somewhere in this level'}${save.best[lvl] ? ' · best ' + fmt(save.best[lvl]) : ''}</p>
       ${lvl === 0 ? controlsHelp() : ''}
       <div class="row"><button class="btn green" id="bGo" data-default>Start</button><button class="btn ghost" id="bMenu">Menu</button></div>`);
     bind('bGo', () => { closeModal(); state = 'play'; prev = { jump: true, dash: true, grab: true }; showControls(); });
@@ -235,12 +240,17 @@
     const L = LEVELS[lvl], n = L.notes, final = lvl === LEVELS.length - 1;
     save.unlocked = Math.max(save.unlocked, Math.min(lvl + 1, LEVELS.length - 1));
     if (final) save.won = true;
+    const pb = !save.best[lvl] || time < save.best[lvl];
+    if (pb) save.best[lvl] = time;
+    const newBug = G.bug && !save.bugs[lvl];
+    if (G.bug) save.bugs[lvl] = true;
     persist();
     const used = [...G.used].map(k => GLITCHES[k]);
-    const secs = (time / 60).toFixed(1);
+    const secs = fmt(time) + (pb ? ' NEW BEST' : '');
     openModal(`
-      <p class="muted">${final ? 'YOU BEAT THE FINAL BUILD' : 'LEVEL CLEARED'} · ${secs}s · ${deaths} death${deaths === 1 ? '' : 's'}</p>
+      <p class="muted">${final ? 'YOU BEAT THE FINAL BUILD' : 'LEVEL CLEARED'} · ${secs} · ${deaths} death${deaths === 1 ? '' : 's'}</p>
       <h2>${esc(L.name)} ✓</h2>
+      ${newBug ? `<p style="color:#39ff88">🐞 Hidden bug collected! ${bugCount()} / ${LEVELS.length}</p>` : ''}
       ${used.length ? `<p>You used: <b style="color:#00e5ff">${used.map(esc).join(', ')}</b></p>` : '<p>You used no glitches?? How??</p>'}
       <div class="post">
         <div class="who"><div class="av">🛠</div><div><b>lead_dev_greg</b><br><span class="muted">Patch v${n.ver} is live</span></div></div>
@@ -258,8 +268,8 @@
     state = 'end';
     openModal(`<h1 class="logo">YOU BROKE IT</h1>
       <p style="text-align:center">Every build, every patch, every glitch. The dev has removed the pause menu out of spite.</p>
-      <div class="post"><div class="who"><div class="av">🛠</div><div><b>lead_dev_greg</b><br><span class="muted">Patch v1.1.1</span></div></div>
-      <ul><li>Added the pause menu back. People were upset.</li><li>If you found a glitch we missed, please do not tell Buggy Games YT.</li></ul></div>
+      <div class="post"><div class="who"><div class="av">🛠</div><div><b>lead_dev_greg</b><br><span class="muted">Patch v2.0.1</span></div></div>
+      <ul><li>Added the pause menu back. People were upset.</li><li>If you found a glitch we missed, please do not tell Buggy Games YT.</li><li>Hidden bugs reported by you: ${bugCount()} / ${LEVELS.length}. We are not fixing those either.</li></ul></div>
       <div class="row"><button class="btn green" id="bT" data-default>Title</button><button class="btn ghost" id="bL">Levels</button></div>`);
     bind('bT', showTitle); bind('bL', showLevels);
   }
@@ -273,10 +283,12 @@
           banner = { text: 'GLITCH: ' + GLITCHES[e.glitch].toUpperCase(), t: 110, g: e.glitch };
           fx = 22; shake = 8; SFX.glitch(); buzz([20, 30, 20]);
         }
+        if (e.glitch === 'deathkey') toast = { text: 'RESPAWNED WITH YOUR KEYS. Keys: ' + G.keys, t: 120 };
         if (e.glitch === 'dupe') toast = { text: 'KEY DUPLICATED. Keys: ' + G.keys, t: 120 };
       } else if (e.type === 'jump') SFX.jump();
       else if (e.type === 'dash') { SFX.dash(); }
       else if (e.type === 'key') { SFX.key(); if (!toast || toast.t < 60) toast = { text: 'Key! ' + G.keys + (G.L.need ? ' / ' + G.L.need : ''), t: 70 }; }
+      else if (e.type === 'bug') { SFX.key(); buzz(30); toast = { text: '🐞 Hidden bug found!', t: 100 }; burst(G.p.x + 10, G.p.y + 10, 14); }
       else if (e.type === 'door') { SFX.door(); toast = { text: 'Door unlocked', t: 70 }; }
       else if (e.type === 'toast') toast = { text: e.text, t: 120 };
       else if (e.type === 'die') { deaths++; SFX.die(); buzz(60); shake = 10; burst(G.p.x + 10, G.p.y + 14, 26); }
@@ -300,7 +312,7 @@
         G.step(inp); drain();
         if (!G.done && !wasDead) time++;
         const p = G.p;
-        if (p.dash > 0 || p.launched) trail.push({ x: p.x, y: p.y, t: 12, launched: p.launched });
+        if (p.dash > 0 || p.launched || p.hyper) trail.push({ x: p.x, y: p.y, t: 12, launched: p.launched });
       }
       trail.forEach(t => t.t--); trail = trail.filter(t => t.t > 0);
       parts.forEach(q => { q.x += q.vx; q.y += q.vy; q.vy += 0.25; q.t--; }); parts = parts.filter(q => q.t > 0);
@@ -368,6 +380,7 @@
     cx.fillStyle = 'rgba(10,8,20,0.7)'; cx.fillRect(8, 8, 250, G.L.need ? 46 : 28);
     cx.font = 'bold 14px ui-monospace, Menlo, Consolas, monospace'; cx.textBaseline = 'top'; cx.textAlign = 'left';
     cx.fillStyle = '#fff'; cx.fillText((lvl === LEVELS.length - 1 ? 'FINAL' : 'LV ' + (lvl + 1)) + ' · ' + G.L.name, 16, 14);
+    if (G.bug || save.bugs[lvl]) { cx.textAlign = 'right'; cx.fillStyle = '#39ff88'; cx.fillText('🐞', 250, 14); cx.textAlign = 'left'; }
     if (G.L.need) { cx.fillStyle = '#ffd23f'; cx.fillText('KEYS ' + G.keys + '   door needs ' + G.L.need, 16, 34); }
     cx.textAlign = 'right'; cx.fillStyle = '#9a92c9'; cx.font = '12px ui-monospace, Menlo, Consolas, monospace';
     cx.fillText('build v' + verOf(lvl), VW - 12, VH - 20);
@@ -439,6 +452,14 @@
       cx.fillStyle = `rgba(57,255,136,${pu * 0.35})`; cx.fillRect(x - 4, y - 28, T + 8, T + 28);
       cx.strokeStyle = '#39ff88'; cx.lineWidth = 3; cx.strokeRect(x + 1.5, y - 26, T - 3, T + 24.5);
       cx.fillStyle = '#39ff88'; cx.font = 'bold 10px ui-monospace, monospace'; cx.textAlign = 'center'; cx.textBaseline = 'alphabetic'; cx.fillText('EXIT', x + T / 2, y - 32);
+    } else if (ch === 'B') {
+      const b = Math.sin(gt * 0.12 + c) * 2, bx = x + 16, by = y + 16 + b;
+      cx.fillStyle = 'rgba(57,255,136,0.18)'; cx.beginPath(); cx.arc(bx, by, 13, 0, 6.28); cx.fill();
+      cx.strokeStyle = '#1a6b3a'; cx.lineWidth = 2;
+      for (let k = -1; k <= 1; k++) { cx.beginPath(); cx.moveTo(bx - 9, by + k * 4); cx.lineTo(bx + 9, by + k * 4); cx.stroke(); }
+      cx.fillStyle = '#39ff88'; cx.beginPath(); cx.ellipse(bx, by + 1, 6, 8, 0, 0, 6.28); cx.fill();
+      cx.fillStyle = '#0a0814'; cx.fillRect(bx - 0.5, by - 4, 1, 12); cx.beginPath(); cx.arc(bx, by - 7, 3.5, 0, 6.28); cx.fill();
+      if (Math.random() < 0.04) { cx.fillStyle = hsl(Math.random() * 360, 100, 60, 0.7); cx.fillRect(x, y + Math.random() * T, T, 2); }
     } else if (ch === '^') {
       cx.fillStyle = '#ff3c5a';
       for (let k = 0; k < 3; k++) { cx.beginPath(); cx.moveTo(x + k * 10 + 1, y + T); cx.lineTo(x + k * 10 + 6, y + 14); cx.lineTo(x + k * 10 + 11, y + T); cx.fill(); }

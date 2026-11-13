@@ -3,7 +3,7 @@
 (function (root) {
   'use strict';
   const T = 32, GRAV = 0.6, MAXFALL = 14, JUMPV = -11.2, WALLJUMPV = -10.8, WALK = 3.6;
-  const DASHV = 16, DASHF = 9, LAUNCHV = -21, VOID_FLOOR = 40;
+  const DASHV = 16, DASHF = 9, LAUNCHV = -21, VOID_FLOOR = 40, HYPERV = 14;
 
   const GLITCHES = {
     clip: 'Speed Clip',
@@ -12,47 +12,74 @@
     ledge: 'Ledge Clip',
     launch: 'Crate Launch',
     oob: 'Out of Bounds',
+    hyper: 'Hyper Jump',
+    iframes: 'Dash I-Frames',
+    deathkey: 'Respawn Keep',
     pauseclip: 'Pause Clip'
   };
   const START_LIVE = ['clip', 'walljump', 'dupe', 'ledge', 'launch', 'oob'];
 
   // Level ops: [char, x, y, w, h]. '#' wall, '|' thin wall, 'L' cracked ceiling, 'D' locked door,
-  // 'K' key, 'C' crate, 'E' exit, '^' spikes, 'P' start.
+  // 'K' key, 'B' hidden bug (collectible), 'C' crate, 'E' exit, '^' spikes, 'P' start.
   const box = (w, h) => [['#', 0, 0, w, 1], ['#', 0, h - 1, w, 1], ['#', 0, 0, 1, h], ['#', w - 1, 0, 1, h]];
   const LEVELS = [
-    { name: 'Hello World', w: 30, h: 17, need: 0, ops: [...box(30, 17), ['|', 18, 1, 1, 15], ['P', 3, 15], ['E', 25, 15]],
+    { name: 'Hello World', w: 30, h: 17, need: 0, ops: [...box(30, 17), ['|', 18, 1, 1, 15], ['P', 3, 15], ['E', 25, 15], ['B', 10, 13]],
       hint: 'Dashing (Shift) into thin striped walls at full speed may let players clip through them. Please do not do this.',
       notes: { ver: '1.0.1', lines: ['Fixed players phasing through thin walls while dashing. Walls are now 400% more wall.', 'Removed the "speed" from "speedrunning".', 'Known issue: players can jump off walls. That is not a feature. Please stop.'], patch: ['clip'] } },
-    { name: 'The Shaft', w: 24, h: 17, need: 0, ops: [...box(24, 17), ['#', 12, 1, 1, 12], ['#', 16, 4, 7, 12], ['P', 3, 15], ['E', 20, 3]],
+    { name: 'The Shaft', w: 24, h: 17, need: 0, ops: [...box(24, 17), ['#', 12, 1, 1, 12], ['#', 16, 4, 7, 12], ['P', 3, 15], ['E', 20, 3], ['B', 14, 8]],
       hint: 'Players report jumping again while touching a wall. Our physics team says that is impossible.',
       notes: { ver: '1.0.2', lines: ['Wall jumping removed. Walls are for leaning on, not climbing.', 'Gravity now applies near walls. It always did. Walls were just ignoring it.', 'Known issue: pausing at the exact moment you grab a key. Do not.'], patch: ['walljump'] } },
-    { name: 'Locksmith', w: 26, h: 17, need: 2, ops: [...box(26, 17), ['D', 17, 1, 1, 15], ['#', 6, 13, 5, 1], ['K', 8, 12], ['P', 3, 15], ['E', 22, 15]],
+    { name: 'Locksmith', w: 26, h: 17, need: 2, ops: [...box(26, 17), ['D', 17, 1, 1, 15], ['#', 6, 13, 5, 1], ['K', 8, 12], ['P', 3, 15], ['E', 22, 15], ['B', 8, 10]],
       hint: 'This door takes 2 keys and we only placed 1. Pausing (P) right as you grab a key sometimes gives you two. Do not do this.',
       notes: { ver: '1.0.3', lines: ['Keys can no longer be duplicated by pausing. The pause menu is now read only.', 'Key economy restored. The locksmith union has called off the strike.', 'Known issue: something about cracked ceilings. We will look at it Monday.'], patch: ['dupe'] } },
-    { name: 'Crawlspace', w: 26, h: 17, need: 0, ops: [...box(26, 17), ['#', 1, 12, 24, 1], ['L', 1, 12], ['^', 10, 11, 2, 1], ['P', 6, 15], ['E', 22, 11]],
+    { name: 'Crawlspace', w: 26, h: 17, need: 0, ops: [...box(26, 17), ['#', 1, 12, 24, 1], ['L', 1, 12], ['^', 10, 11, 2, 1], ['P', 6, 15], ['E', 22, 11], ['B', 18, 14]],
       hint: 'Jumping into a corner under a cracked ceiling while holding toward the wall... we do not want to talk about it.',
       notes: { ver: '1.0.4', lines: ['Cracked ceilings are now just ceilings. We sent the intern up there with some glue.', 'Players can no longer phase upward by hugging corners.', 'Known issue: crates. Just crates in general.'], patch: ['ledge'] } },
-    { name: 'Liftoff', w: 26, h: 17, need: 0, ops: [...box(26, 17), ['#', 16, 7, 9, 9], ['C', 9, 15], ['P', 3, 15], ['E', 22, 6]],
+    { name: 'Liftoff', w: 26, h: 17, need: 0, ops: [...box(26, 17), ['#', 16, 7, 9, 9], ['C', 9, 15], ['P', 3, 15], ['E', 22, 6], ['B', 3, 12]],
       hint: 'Pressing Grab (E) while standing on a crate does something very wrong. Physics team is on vacation.',
       notes: { ver: '1.0.5', lines: ['Crates are no longer powered by rocket fuel.', 'Grabbing a crate you are standing on no longer launches you into orbit. NASA has stopped emailing us.', 'Known issue: the floor has a bottom. Please do not look under it.'], patch: ['launch'] } },
-    { name: 'Under Construction', w: 30, h: 17, need: 0, ops: [['#', 0, 0, 30, 1], ['#', 0, 0, 1, 17], ['#', 29, 0, 1, 17], ['#', 1, 14, 7, 3], ['#', 11, 14, 9, 3], ['#', 20, 0, 1, 17], ['#', 21, 16, 2, 1], ['#', 24, 16, 5, 1], ['P', 3, 13], ['E', 26, 15]],
+    { name: 'Under Construction', w: 30, h: 17, need: 0, ops: [['#', 0, 0, 30, 1], ['#', 0, 0, 1, 17], ['#', 29, 0, 1, 17], ['#', 1, 14, 7, 3], ['#', 11, 14, 9, 3], ['#', 20, 0, 1, 17], ['#', 21, 16, 2, 1], ['#', 24, 16, 5, 1], ['P', 3, 13], ['E', 26, 15], ['B', 5, 10]],
       hint: 'The exit room has no door yet. Also, dashing while falling into a pit... you do not die? Where do you even go?',
       notes: { ver: '1.0.6', lines: ['Removed the floor below the floor.', 'Dashing no longer makes you immune to the void.', 'Oops: this build accidentally reverted the 1.0.2 wall jump fix. We will get it next time.'], patch: ['oob'], restore: ['walljump'] } },
-    { name: 'Regression', w: 24, h: 17, need: 0, ops: [...box(24, 17), ['#', 4, 5, 19, 11], ['^', 10, 4, 2, 1], ['^', 16, 4, 2, 1], ['P', 2, 15], ['E', 21, 4]],
+    { name: 'Regression', w: 24, h: 17, need: 0, ops: [...box(24, 17), ['#', 4, 5, 19, 11], ['^', 10, 4, 2, 1], ['^', 16, 4, 2, 1], ['P', 2, 15], ['E', 21, 4], ['B', 2, 9]],
       hint: 'The wall jump fix got reverted by accident. Ignore that. Do not climb anything.',
       notes: { ver: '1.0.7', lines: ['Wall jumping removed. Again. For real this time. We put it in a jar.', 'Hotfix: rolled wall physics back to 1.0.0 to stop crates crashing the game.', 'Side effects of the rollback: unknown. Probably fine.'], patch: ['walljump'], restore: ['clip'] } },
-    { name: 'Rollback', w: 35, h: 17, need: 0, ops: [...box(35, 17), ['|', 8, 1, 1, 15], ['|', 15, 1, 1, 15], ['|', 23, 1, 1, 15], ['^', 20, 15, 3, 1], ['P', 3, 15], ['E', 31, 15]],
+    { name: 'Rollback', w: 35, h: 17, need: 0, ops: [...box(35, 17), ['|', 8, 1, 1, 15], ['|', 15, 1, 1, 15], ['|', 23, 1, 1, 15], ['^', 20, 15, 3, 1], ['P', 3, 15], ['E', 31, 15], ['B', 12, 13]],
       hint: 'Since the rollback, thin walls feel thin again. Dash only once per jump. Mind the spikes.',
       notes: { ver: '1.0.8', lines: ['Thin walls are thick now. Again.', 'Somehow key duplication is back. Nobody touched the pause menu. We are scared.', 'Added a second person to count keys.'], patch: ['clip'], restore: ['dupe'] } },
-    { name: 'Double Trouble', w: 30, h: 17, need: 2, ops: [...box(30, 17), ['D', 10, 1, 1, 15], ['D', 20, 1, 1, 15], ['K', 5, 15], ['#', 13, 13, 5, 1], ['K', 15, 12], ['P', 2, 15], ['E', 26, 15]],
+    { name: 'Double Trouble', w: 30, h: 17, need: 2, ops: [...box(30, 17), ['D', 10, 1, 1, 15], ['D', 20, 1, 1, 15], ['K', 5, 15], ['#', 13, 13, 5, 1], ['K', 15, 12], ['P', 2, 15], ['E', 26, 15], ['B', 15, 9]],
       hint: 'Two doors, two keys each, one key per room. Key duplication is back and we have no idea how.',
       notes: { ver: '1.0.9', lines: ['Duplication fixed, again. Keys are now counted by two people who do not like each other.', 'Merged an old branch from a dev who "left the company". Do not worry about it.', 'Cracked ceilings and crates may be acting up. Unrelated, surely.'], patch: ['dupe'], restore: ['ledge', 'launch'] } },
-    { name: 'Merge Conflict', w: 28, h: 17, need: 0, ops: [...box(28, 17), ['#', 1, 12, 26, 1], ['L', 1, 12], ['#', 18, 3, 9, 9], ['C', 11, 11], ['P', 20, 15], ['E', 23, 2]],
+    { name: 'Merge Conflict', w: 28, h: 17, need: 0, ops: [...box(28, 17), ['#', 1, 12, 26, 1], ['L', 1, 12], ['#', 18, 3, 9, 9], ['C', 11, 11], ['P', 20, 15], ['E', 23, 2], ['B', 25, 14]],
       hint: 'The old branch brought back cracked ceilings AND rocket crates. Two bugs, one level.',
-      notes: { ver: '1.0.10', lines: ['Removed cracked ceilings and rocket crates for good.', 'This is now the most stable build ever. Zero glitches remain. Do not check.', 'Unrelated: please stop pausing so much. It hurts the pause menu\'s feelings.'], patch: ['ledge', 'launch'] } },
-    { name: 'Gold Master', w: 26, h: 17, need: 0, ops: [...box(26, 17), ['#', 14, 1, 3, 15], ['P', 4, 15], ['E', 22, 15]],
+      notes: { ver: '1.0.10', lines: ['Removed cracked ceilings and rocket crates for good.', 'New feature: dash momentum! Jumping mid-dash now keeps some of your speed. Totally intended.', 'Known issue: it keeps ALL of your speed.'], patch: ['ledge', 'launch'], restore: ['hyper'] } },
+    { name: 'Momentum', w: 34, h: 17, need: 0, ops: [['#', 0, 0, 34, 1], ['#', 0, 0, 1, 17], ['#', 33, 0, 1, 17], ['#', 1, 16, 8, 1], ['#', 22, 16, 11, 1], ['P', 3, 15], ['E', 30, 15], ['B', 15, 12]],
+      hint: 'Jumping in the middle of a dash keeps ALL your speed. The gap is way too wide without it. Dash (Shift), then jump right away.',
+      notes: { ver: '1.1.1', lines: ['Dash momentum nerfed into the ground. Jumping now politely asks your speed to leave.', 'New accessibility option: you are invincible while dashing. For fairness.', 'Known issue: spikes do not count as damage while dashing. Working as intended?'], patch: ['hyper'], restore: ['iframes'] } },
+    { name: 'Spike Tunnel', w: 30, h: 17, need: 0, ops: [...box(30, 17), ['#', 8, 1, 14, 14], ['^', 12, 15, 2, 1], ['P', 3, 15], ['E', 26, 15], ['B', 4, 13]],
+      hint: 'No room to jump in here. Spikes cannot hurt you while you are mid-dash (Shift). We call that a feature.',
+      notes: { ver: '1.1.2', lines: ['Removed dash invincibility. Spikes are spiky again.', 'Added checkpoints! Respawning now keeps whatever you were holding.', 'Known issue: "whatever you were holding" includes keys. And the keys respawn too.'], patch: ['iframes'], restore: ['deathkey'] } },
+    { name: 'Save Scum', w: 26, h: 17, need: 3, ops: [...box(26, 17), ['D', 17, 1, 1, 15], ['K', 8, 15], ['^', 12, 15, 1, 1], ['P', 3, 15], ['E', 22, 15], ['B', 2, 12]],
+      hint: 'Door needs 3 keys and there is 1. Die while holding a key and you respawn with it, and the key comes back. The spikes are right there...',
+      notes: { ver: '1.1.3', lines: ['Dying now takes your keys away. As it should.', 'Rolled physics back to 1.0.0 to fix checkpoints. Thin walls and dash momentum may have come back with it.', 'Known issue: yes, both of them came back.'], patch: ['deathkey'], restore: ['clip', 'hyper'] } },
+    { name: 'Fast Travel', w: 40, h: 17, need: 0, ops: [['#', 0, 0, 40, 1], ['#', 0, 0, 1, 17], ['#', 39, 0, 1, 17], ['#', 1, 16, 8, 1], ['#', 22, 16, 17, 1], ['|', 30, 1, 1, 15], ['P', 3, 15], ['E', 36, 15], ['B', 26, 13]],
+      hint: 'A huge gap AND a thin wall. Hyper jump across (dash, then jump), land, then dash (Shift) through the striped wall.',
+      notes: { ver: '1.1.4', lines: ['Thin walls and momentum fixed. Again. We have a whiteboard counting how many times.', 'Reverted wall physics to an old build to fix the whiteboard app.', 'Known issue: walls are climbable and spikes are optional again. Not our best week.'], patch: ['clip', 'hyper'], restore: ['walljump', 'iframes'] } },
+    { name: 'Spike Ceiling', w: 24, h: 17, need: 0, ops: [...box(24, 17), ['#', 12, 1, 1, 12], ['#', 16, 4, 7, 12], ['#', 17, 1, 6, 2], ['^', 18, 3, 2, 1], ['P', 3, 15], ['E', 21, 3], ['B', 14, 7]],
+      hint: 'Wall jump up the shaft, then dash (Shift) through the spikes at the top. Invincibility frames are back somehow.',
+      notes: { ver: '1.1.5', lines: ['Wall jumps and i-frames removed. They are in the jar with the other wall jumps.', 'The key counting team quit. We replaced them with a spreadsheet.', 'Known issue: the spreadsheet has duplicate rows. And it remembers keys after you die.'], patch: ['walljump', 'iframes'], restore: ['dupe', 'deathkey'] } },
+    { name: 'Key Farm', w: 26, h: 17, need: 4, ops: [...box(26, 17), ['D', 17, 1, 1, 15], ['K', 8, 15], ['^', 12, 15, 1, 1], ['P', 3, 15], ['E', 22, 15], ['B', 20, 12]],
+      hint: 'Door needs 4 keys. Pausing (P) right as you grab a key duplicates it, and dying keeps your keys. Farm away.',
+      notes: { ver: '1.1.6', lines: ['Keys can no longer be farmed. The spreadsheet has been deleted.', 'Restored the level editor from a backup we found in the basement. It brought some old friends.', 'Known issue: there is a floor under the floor again, and the ceiling is cracked.'], patch: ['dupe', 'deathkey'], restore: ['oob', 'ledge'] } },
+    { name: 'Basement', w: 30, h: 17, need: 0, ops: [['#', 0, 0, 30, 1], ['#', 0, 0, 1, 17], ['#', 29, 0, 1, 17], ['#', 1, 14, 7, 3], ['#', 11, 14, 9, 3], ['#', 20, 0, 1, 17], ['#', 21, 16, 2, 1], ['#', 24, 16, 5, 1], ['#', 21, 12, 8, 1], ['L', 28, 12], ['P', 3, 13], ['E', 25, 11], ['B', 15, 11]],
+      hint: 'Dash in the air over the pit to fall under the map. Come up on the other side, then jump into the cracked corner while holding toward the wall.',
+      notes: { ver: '1.1.7', lines: ['Removed the floor under the floor. Permanently. We poured concrete.', 'Glued the cracked ceilings. With better glue this time.', 'Known issue: crates found the rocket fuel again, and dashing makes you spike-proof. We are so tired.'], patch: ['oob', 'ledge'], restore: ['launch', 'iframes'] } },
+    { name: 'Rocket Science', w: 26, h: 17, need: 0, ops: [...box(26, 17), ['#', 12, 5, 13, 11], ['#', 14, 1, 11, 3], ['^', 15, 4, 3, 1], ['C', 6, 15], ['P', 3, 15], ['E', 22, 4], ['B', 9, 13]],
+      hint: 'The shelf is way too high. Push the crate over, stand on it and Grab (E). Then dash (Shift) through the spikes up top.',
+      notes: { ver: '1.1.8', lines: ['Crates are decaf now. I-frames removed.', 'Every known glitch has been fixed. QA signed off. QA is my cousin.', 'Known issue: the pause menu. It is always the pause menu.'], patch: ['launch', 'iframes'] } },
+    { name: 'Gold Master', w: 26, h: 17, need: 0, ops: [...box(26, 17), ['#', 14, 1, 3, 15], ['P', 4, 15], ['E', 22, 15], ['B', 8, 13]],
       hint: 'All glitches removed. Every single one. The pause menu is totally safe. Totally.',
-      notes: { ver: '1.1.0', lines: ['Removed the pause menu.', 'Removed walls you can pause through. It was all the walls.', 'Patch Notes is now officially 100% glitch free. Thanks for playing!'], patch: ['pauseclip'] } }
+      notes: { ver: '2.0.0', lines: ['Removed the pause menu.', 'Removed walls you can pause through. It was all the walls.', 'Patch Notes is now officially 100% glitch free. Thanks for playing!'], patch: ['pauseclip'] } }
   ];
 
   function liveFor(idx) {
@@ -80,7 +107,7 @@
     this.idx = idx; this.L = L; this.grid = build(L); this.cols = L.w; this.rows = L.h;
     this.W = L.w * T; this.B = L.h * T;
     this.live = liveFor(idx); this.used = new Set();
-    this.keys = 0; this.crates = []; this.frame = 0; this.done = false; this.dead = 0; this.doorMsg = 0;
+    this.keys = 0; this.crates = []; this.frame = 0; this.done = false; this.dead = 0; this.doorMsg = 0; this.kept = 0; this.bug = false;
     let sx = 2, sy = 2;
     for (let r = 0; r < this.rows; r++) for (let c = 0; c < this.cols; c++) {
       const ch = this.grid[r][c];
@@ -89,7 +116,7 @@
     }
     this.spawn = { x: sx * T + 6, y: (sy + 1) * T - 28 };
     this.p = { x: this.spawn.x, y: this.spawn.y, w: 20, h: 28, vx: 0, vy: 0, face: 1, onGround: false, canDash: true, dash: 0,
-      airDashed: false, lock: 0, jbuf: 0, coyote: 0, keyTimer: 0, launched: false, void: false, on: null, clipping: false };
+      airDashed: false, hyper: false, ifr: false, lock: 0, jbuf: 0, coyote: 0, keyTimer: 0, launched: false, void: false, on: null, clipping: false };
   };
 
   Game.prototype.ev = function (type, extra) {
@@ -156,12 +183,14 @@
 
   Game.prototype.die = function (why) {
     if (this.dead) return;
-    this.dead = 40; this.ev('die', { why });
+    this.dead = 40; this.kept = this.keys; this.ev('die', { why });
   };
 
   Game.prototype.respawn = function () {
-    const idx = this.idx, used = this.used, live = this.live;
+    const idx = this.idx, used = this.used, live = this.live, kept = this.kept, bug = this.bug;
     this.load(idx); this.used = used; this.live = live;
+    if (bug) { this.bug = true; for (const row of this.grid) for (let c = 0; c < row.length; c++) if (row[c] === 'B') row[c] = '.'; }
+    if (kept > 0 && live.has('deathkey')) { this.keys = kept; this.ev('deathkey'); }
   };
 
   Game.prototype.pause = function () {
@@ -208,11 +237,16 @@
     if (p.dash > 0) {
       p.vx = p.face * DASHV; p.vy = 0; p.dash--;
       if (!p.onGround) p.airDashed = true;
-    } else if (p.lock > 0) p.lock--;
+    } else if (p.hyper) { /* keeps full dash speed */ }
+    else if (p.lock > 0) p.lock--;
     else p.vx += (dir * WALK - p.vx) * (p.onGround ? 0.45 : 0.28);
 
     if (p.jbuf > 0) {
-      if (p.onGround || p.coyote > 0) { p.vy = JUMPV; p.jbuf = 0; p.coyote = 0; p.onGround = false; p.dash = 0; this.ev('jump'); }
+      if (p.onGround || p.coyote > 0) {
+        const wasDash = p.dash > 0;
+        p.vy = JUMPV; p.jbuf = 0; p.coyote = 0; p.onGround = false; p.dash = 0; this.ev('jump');
+        if (wasDash && LV.has('hyper')) { p.hyper = true; p.vx = p.face * HYPERV; this.ev('hyper'); }
+      }
       else if (LV.has('walljump')) {
         const w = this.touching(-1) ? -1 : this.touching(1) ? 1 : 0;
         if (w) { p.vy = WALLJUMPV; p.vx = -w * 6.5; p.lock = 10; p.face = -w; p.jbuf = 0; p.dash = 0; this.ev('walljump'); }
@@ -239,7 +273,7 @@
         this.move(hx.crate, push, 'x', { crates: true, self: hx.crate });
         this.move(p, push, 'x', o);
         p.vx = push;
-      } else { p.vx = 0; if (p.dash > 0) p.dash = 0; }
+      } else { p.vx = 0; p.hyper = false; if (p.dash > 0) p.dash = 0; }
     }
     if (ign && this.overlapsChar(p, '|')) { p.clipping = true; this.ev('clip'); }
     if (p.dash === 0 && p.clipping) {
@@ -260,7 +294,7 @@
     p.onGround = !!g && p.vy >= 0;
     p.on = g && g.type === 'crate' ? g.crate : null;
     if (p.onGround) {
-      p.coyote = 6; p.airDashed = false; p.launched = false;
+      p.coyote = 6; p.airDashed = false; p.launched = false; p.hyper = false;
       if (p.dash === 0) p.canDash = true;
     } else if (p.coyote > 0) p.coyote--;
 
@@ -280,7 +314,13 @@
       if (this.keys >= this.L.need) { this.keys -= this.L.need; this.openDoor(dc.c, dc.r); this.ev('door'); }
       else if (!this.doorMsg) { this.doorMsg = 90; this.ev('toast', { text: 'Locked. Needs ' + this.L.need + ' keys, you have ' + this.keys + '.' }); }
     }
-    if (this.spiked()) return this.die('spikes');
+    const bc = this.overlapsChar(p, 'B', 2);
+    if (bc) { this.grid[bc.r][bc.c] = '.'; this.bug = true; this.ev('bug'); }
+    if (p.dash === 0) p.ifr = false;
+    if (this.spiked()) {
+      if (p.dash > 0 && LV.has('iframes')) { if (!p.ifr) { p.ifr = true; this.ev('iframes'); } }
+      else return this.die('spikes');
+    }
     if (this.overlapsChar(p, 'E', 4)) { this.done = true; this.ev('exit'); }
   };
 
