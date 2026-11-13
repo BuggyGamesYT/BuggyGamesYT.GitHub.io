@@ -125,6 +125,11 @@
   let jumpPressed = false, sightPressed = false;
   document.querySelectorAll('#touch button').forEach(b => {
     const k = b.dataset.k;
+    if (k === 'run') {
+      b.addEventListener('pointerdown', e => { e.preventDefault(); ac(); keys.run = !keys.run; b.classList.toggle('on', keys.run); b.textContent = keys.run ? 'RUN ✓' : 'RUN'; });
+      b.addEventListener('contextmenu', e => e.preventDefault());
+      return;
+    }
     const on = e => { e.preventDefault(); ac(); if (k === 'jump' && !keys.jump) jumpPressed = true; if (k === 'sight' && !keys.sight) sightPressed = true; keys[k] = true; b.classList.add('on'); try { b.setPointerCapture(e.pointerId); } catch (_) {} };
     const off = e => { e.preventDefault(); keys[k] = false; b.classList.remove('on'); };
     b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off);
