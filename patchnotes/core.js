@@ -119,21 +119,30 @@
   let seedNow = 0;
   function rng(seed) { let x = (seed >>> 0) || 1; return () => { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; }; }
 
-  // an obstacle run: spikes, pits, blocks, steps; harder and longer later on
-  function makeRun(rnd, n, F) {
-    const A = 18 + Math.min(52, Math.floor(n * 0.55)) + Math.floor(rnd() * 8);
-    const ops = [['#', 0, 0, A, 1], ['#', 0, 0, 1, 17]];
+  // where each hand-made room is entered (its spawn) and left (its exit door)
+  const META = new Map();
+  function meta(R) {
+    if (META.has(R)) return META.get(R);
+    const g = build(R); let sx = 2, sy = 15, er = 15, ec = R.w - 2;
+    for (let r = 0; r < R.h; r++) for (let c = 0; c < R.w; c++) { if (g[r][c] === 'P') { sx = c; sy = r; } if (g[r][c] === 'E') { er = r; ec = c; } }
+    const m = { sx, sy, er, ec, g }; META.set(R, m); return m;
+  }
+
+  // an obstacle run piece: starts at floor row f0 (a tower if the last room's exit was high up), ends at floor row f1
+  function makeRun(rnd, n, A, f0, f1) {
+    const F = 16, ops = [['#', 0, 0, A, 1]];
     const ground = new Array(A).fill(F);
+    for (let c = 0; c < 3; c++) ground[c] = f0;
+    for (let c = A - 3; c < A; c++) ground[c] = f1;
     const bits = [];
-    let x = 5;
-    const kinds = n < 10 ? ['spike', 'block', 'pit'] : ['spike', 'spike', 'block', 'pit', 'pit', 'tall', 'step', 'spikepit'];
-    while (x < A - 5) {
+    let x = f0 < 14 ? 13 : 6;
+    const kinds = n < 6 ? ['spike', 'block', 'pit'] : ['spike', 'spike', 'block', 'pit', 'pit', 'tall', 'step', 'spikepit'];
+    while (x < A - 6) {
       const kind = kinds[Math.floor(rnd() * kinds.length)];
       let w = 1;
       if (kind === 'spike' || kind === 'pit') w = 1 + (rnd() < Math.min(0.7, 0.2 + n / 100) ? 1 : 0) + (n > 40 && rnd() < 0.25 ? 1 : 0);
       if (kind === 'step') w = 3 + Math.floor(rnd() * 3);
-      if (kind === 'spikepit') w = 1;
-      if (x + w > A - 5) break;
+      if (x + w > A - 6) break;
       bits.push([kind, x, w]);
       x += w + 3 + Math.floor(rnd() * 3) + (kind === 'spikepit' ? 1 : 0);
     }
@@ -141,17 +150,39 @@
       if (kind === 'pit') for (let c = bx; c < bx + w; c++) ground[c] = 99;
       if (kind === 'step') for (let c = bx; c < bx + w; c++) ground[c] = F - 1;
     }
-    for (let c = 1; c < A; c++) if (ground[c] < 99) ops.push(['#', c, ground[c], 1, 17 - ground[c]]);
+    for (let c = 0; c < A; c++) if (ground[c] < 99) ops.push(['#', c, ground[c], 1, 17 - ground[c]]);
     for (const [kind, bx, w] of bits) {
       if (kind === 'spike') ops.push(['^', bx, F - 1, w, 1]);
       else if (kind === 'block') ops.push(['#', bx, F - 1, 1, 1]);
       else if (kind === 'tall') ops.push(['#', bx, F - 2, 1, 2]);
       else if (kind === 'spikepit') { ops.push(['.', bx, F, 1, 17 - F]); ops.push(['^', bx + 1, F - 1, 1, 1]); }
     }
-    ops.push(['#', A - 1, 0, 1, F - 2]);
-    ops.push(['G', A - 2, F - 2, 1, 2]);
-    ops.push(['P', 2, F - 1]);
-    return { w: A, h: 17, need: 0, ops, approach: A, floor: F };
+    return ops;
+  }
+
+  // one long level: run, puzzle room, run, puzzle room ... all side by side in one wide map
+  function stitch(rnd, n, rooms, bugAt) {
+    const ops = [], regions = [];
+    let off = 0, f0 = 16;
+    rooms.forEach((R, k) => {
+      const m = meta(R);
+      const A = 14 + Math.min(30, Math.floor(n * 0.35)) + Math.floor(rnd() * 8);
+      const f1 = m.sy + 1;
+      for (const o of makeRun(rnd, n, A, f0, f1)) { const q = o.slice(); q[1] += off; ops.push(q); }
+      if (k === 0) { ops.push(['#', 0, 0, 1, 17]); ops.push(['P', 1, f0 - 1]); }
+      regions.push({ x0: off, x1: off + A, live: R.live, need: 0, room: -1, spawn: { c: off + 1, r: f0 - 1 } });
+      off += A;
+      for (const o of R.ops) {
+        if (o[0] === 'P' || (o[0] === 'B' && k !== bugAt)) continue;
+        const q = o.slice(); q[1] += off; if (q[0] === 'E' && k < rooms.length - 1) q[0] = 'X'; ops.push(q);
+      }
+      ops.push(['.', off, m.sy - 1, 1, 2]);
+      const hole = k < rooms.length - 1 ? { c: off + R.w - 1, rows: m.g[m.er - 1][R.w - 2] === '.' ? [m.er - 1, m.er] : [m.er] } : null;
+      regions.push({ hole, x0: off, x1: off + R.w, live: R.live, need: R.need || 0, room: k, tpl: R.tpl, hint: R.hint, spawn: { c: m.sx + off, r: m.sy }, door: { c: off, r: m.sy - 1, wall: [m.g[m.sy - 1][0], m.g[m.sy][0]] } });
+      off += R.w;
+      f0 = Math.min(16, m.er + 1);
+    });
+    return { w: off, h: 17, need: 0, ops, regions };
   }
 
   function generate(seed) {
@@ -163,23 +194,22 @@
     let recent = [];
     for (let n = 0; n < TOTAL; n++) {
       const final = n === TOTAL - 1;
-      const count = final ? 1 : n < 8 ? 1 : n < 35 ? 1 + (rnd() < 0.6 ? 1 : 0) : n < 70 ? 2 : 2 + (rnd() < 0.6 ? 1 : 0);
-      const pool = n < 8 ? single : ROOMS;
+      const count = final ? 4 : n < 4 ? 1 : n < 15 ? 2 : n < 35 ? 3 : n < 65 ? 4 : 5;
+      const pool = n < 4 ? single : n < 10 ? single.concat(ROOMS.slice(10, 13)) : ROOMS;
       const rooms = [];
-      while (rooms.length < count) {
+      while (rooms.length < count - (final ? 1 : 0)) {
         const R = pick(pool);
-        if (rooms.includes(R) || (recent.includes(R) && rnd() < 0.85)) continue;
+        if (rooms.includes(R) || (recent.includes(R) && rnd() < 0.7)) continue;
         rooms.push(R);
       }
-      if (final) rooms[0] = FINALE;
+      if (final) rooms.push(FINALE);
       recent = rooms.slice();
       const bugAt = Math.floor(rnd() * rooms.length);
-      const stages = rooms.map((R, k) => Object.assign({}, R, { ops: R.ops.filter(o => o[0] !== 'B' || k === bugAt) }));
-      const run = makeRun(rnd, n, 16);
+      const L = stitch(rnd, n, rooms, bugAt);
       const live = new Set(); rooms.forEach(R => R.live.forEach(g => live.add(g)));
       const name = final ? 'Gold Master' : pick(NAMES_A) + ' ' + pick(NAMES_B);
-      const hint = rooms.length === 1 ? rooms[0].hint : rooms.map((R, k) => 'Room ' + (k + 1) + ': ' + R.hint).join(' ');
-      LEVELS.push(Object.assign(run, { name, rooms: stages, room: stages[0], live: [...live], tpl: rooms[0].tpl, hint,
+      const hint = rooms.length === 1 ? rooms[0].hint : rooms.map((R, k) => 'Puzzle ' + (k + 1) + ': ' + R.hint).join(' ');
+      LEVELS.push(Object.assign(L, { name, puzzles: rooms.length, live: [...live], tpl: rooms[0].tpl, hint,
         notes: { ver: final ? '2.0.0' : '1.' + Math.floor(n / 10) + '.' + (n % 10) } }));
     }
     for (let i = 0; i < LEVELS.length; i++) {
@@ -197,7 +227,6 @@
     }
     return seedNow;
   }
-  generate(1);
 
   function liveFor(idx) { return new Set(LEVELS[idx] ? LEVELS[idx].live : []); }
 
@@ -209,6 +238,8 @@
     return g;
   }
 
+  generate(1);
+
   function Game() { this.events = []; }
 
   Game.prototype.load = function (idx) {
@@ -216,12 +247,26 @@
     this.idx = idx; this.L = L;
     this.live = liveFor(idx); this.used = new Set();
     this.keys = 0; this.frame = 0; this.done = false; this.dead = 0; this.doorMsg = 0; this.kept = 0; this.bug = false; this.reveal = 0;
-    this.stage = 1; this.loadRoom(L); if (L.rooms) this.live = new Set(L.rooms[0].live);
+    this.loadRoom(L); this.reg = -1; this.ckpt = 0; this.room = -1; this.stage = 1; this.cleared = new Set();
+    if (L.regions) this.region(0);
+  };
+  Game.prototype.openHole = function (Rg) { for (const r of Rg.hole.rows) this.grid[r][Rg.hole.c] = '.'; };
+  // which part of the long level the player is in: sets that part's glitches, door, and checkpoint
+  Game.prototype.region = function (k) {
+    const L = this.L, Rg = L.regions[k];
+    if (this.p.void && this.reg >= 0 && k !== this.reg && !Rg.live.includes('oob')) return this.die('void');
+    this.reg = k; this.live = new Set(Rg.live); this.need = Rg.need;
+    if (Rg.room >= 0) this.R = Rg;
+    if (k > this.ckpt) {
+      this.ckpt = k;
+      this.spawn = { x: Rg.spawn.c * T + 6, y: (Rg.spawn.r + 1) * T - 28 };
+      if (Rg.room >= 0 && Rg.room > this.room) { this.room = Rg.room; this.stage = Rg.room + 2; this.keys = 0; this.kept = 0; this.ev('stage', { room: Rg.room + 1, of: L.puzzles }); }
+    }
   };
 
   // a generated level has two stages: the obstacle run (L), then the glitch room (L.room). Dying in stage 2 respawns in stage 2.
   Game.prototype.loadRoom = function (R) {
-    this.R = R; this.need = R.need; if (R.live && this.stage > 1) this.live = new Set(R.live); this.grid = build(R); this.cols = R.w; this.rows = R.h;
+    this.R = R; this.need = R.need; this.grid = build(R); this.cols = R.w; this.rows = R.h;
     this.W = R.w * T; this.B = R.h * T; this.crates = [];
     let sx = 2, sy = 2;
     for (let r = 0; r < this.rows; r++) for (let c = 0; c < this.cols; c++) {
@@ -302,9 +347,14 @@
   };
 
   Game.prototype.respawn = function () {
-    const idx = this.idx, used = this.used, live = this.live, kept = this.kept, bug = this.bug, reveal = this.reveal, stage = this.stage;
-    this.load(idx); this.used = used; this.live = live; this.reveal = reveal;
-    if (stage > 1) { this.stage = stage; this.loadRoom(this.L.rooms[stage - 2]); }
+    const cleared = this.cleared, idx = this.idx, used = this.used, live = this.live, kept = this.kept, bug = this.bug, reveal = this.reveal, ckpt = this.ckpt, room = this.room, stage = this.stage, frame = this.frame;
+    this.load(idx); this.used = used; this.live = live; this.reveal = reveal; this.frame = frame;
+    if (this.L.regions) {
+      const Rg = this.L.regions[ckpt];
+      this.cleared = cleared || new Set(); for (const k of this.cleared) this.openHole(this.L.regions[k]);
+      this.ckpt = ckpt; this.room = room; this.stage = stage; this.reg = ckpt; this.live = new Set(Rg.live); this.need = Rg.need; if (Rg.room >= 0) this.R = Rg;
+      this.spawn = { x: Rg.spawn.c * T + 6, y: (Rg.spawn.r + 1) * T - 28 }; this.p.x = this.spawn.x; this.p.y = this.spawn.y;
+    }
     if (bug) { this.bug = true; for (const row of this.grid) for (let c = 0; c < row.length; c++) if (row[c] === 'B') row[c] = '.'; }
     if (kept > 0 && live.has('deathkey')) { this.keys = kept; this.ev('deathkey'); }
   };
@@ -445,17 +495,19 @@
       if (p.dash > 0 && LV.has('iframes')) { if (!p.ifr) { p.ifr = true; this.ev('iframes'); } }
       else return this.die('spikes');
     }
-    if (this.overlapsChar(p, 'G', 2) && this.stage === 1 && this.L.rooms) { this.toStage(2); return; }
-    if (this.overlapsChar(p, 'E', 4)) {
-      if (this.L.rooms && this.stage - 1 < this.L.rooms.length) { this.toStage(this.stage + 1); return; }
-      this.done = true; this.ev('exit');
+    if (this.L.regions) {
+      const cc = Math.floor((p.x + p.w / 2) / T), rg = this.L.regions;
+      let k = this.reg; while (k < rg.length - 1 && cc >= rg[k].x1) k++; while (k > 0 && cc < rg[k].x0) k--;
+      if (k !== this.reg) { this.region(k); if (this.dead) return; }
+      // the way in shuts behind you, so each puzzle room plays exactly like it was built
+      const D = rg[this.reg].door;
+      if (D && cc >= D.c + 2 && this.grid[D.r + 1][D.c] === '.') { this.grid[D.r][D.c] = D.wall[0]; this.grid[D.r + 1][D.c] = D.wall[1]; this.ev('shut'); }
     }
-  };
-
-  Game.prototype.toStage = function (st) {
-    this.stage = st; this.keys = 0; this.kept = 0; this.loadRoom(this.L.rooms[st - 2]);
-    if (this.bug) for (const row of this.grid) for (let c = 0; c < row.length; c++) if (row[c] === 'B') row[c] = '.';
-    this.ev('stage', { room: st - 1, of: this.L.rooms.length });
+    if (this.L.regions && this.overlapsChar(p, 'X', 4)) {
+      const Rg = this.L.regions[this.reg];
+      if (Rg.hole && !this.cleared.has(this.reg)) { this.cleared.add(this.reg); this.openHole(Rg); this.ev('clear', { room: Rg.room + 1, of: this.L.puzzles }); }
+    }
+    if (this.overlapsChar(p, 'E', 4)) { this.done = true; this.ev('exit'); }
   };
 
   Game.prototype.ledge = function (dir) {
