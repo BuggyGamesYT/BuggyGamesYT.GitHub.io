@@ -32,7 +32,7 @@
     for (; x < 9; x++) col(x, h);
     L.start.y = h * T - 30;
     var afterGap = false, cpDone = false;
-    var maxGap = 2 + Math.round(d * 2);
+    var maxGap = 2 + Math.round(d * 3);
     while (x < W - 14) {
       if (!afterGap && r() < 0.32 + d * 0.12) {
         var g = ri(r, 2, maxGap);
@@ -175,7 +175,7 @@
 
   P.spawnPlayer = function () {
     var tiny = this.fx.TINY > 0;
-    this.p = { x: this.cp.x, y: this.cp.y, w: tiny ? 14 : 22, h: tiny ? 18 : 28, vx: 0, vy: 0, ground: false, coyote: 0, buf: 0, face: 1, inv: 1.2, shield: this.p ? this.p.shield : false, dead: false };
+    this.p = { x: this.cp.x, y: this.cp.y, w: tiny ? 14 : 22, h: tiny ? 18 : 28, vx: 0, vy: 0, ground: false, coyote: 0, buf: 0, face: 1, inv: 1.2, hold: 0, airJumps: 1, dj: 0, shield: this.p ? this.p.shield : false, dead: false };
     if (tiny) this.p.y += 10;
   };
 
@@ -375,15 +375,21 @@
     var wantJump = p.buf > 0 || (this.fx.BOUNCY > 0 && p.ground);
     if (wantJump && (p.ground || p.coyote > 0)) {
       p.vy = -jv * g * (this.fx.BOUNCY > 0 && !(p.buf > 0) ? 0.85 : 1);
-      p.ground = false; p.coyote = 0; p.buf = 0; this.sfx('jump');
+      p.ground = false; p.coyote = 0; p.buf = 0; p.hold = 0.24; p.airJumps = 1; this.sfx('jump');
+    } else if (p.buf > 0 && !p.ground && p.airJumps > 0) { // double jump
+      p.vy = -jv * 0.9 * g; p.buf = 0; p.hold = 0.2; p.airJumps--; p.dj = 0.3; this.sfx('jump2');
     }
-    if (!inp.jump && p.vy * g < -200 && this.fx.BOUNCY <= 0) p.vy = -200 * g; // variable jump height
-    p.vy += GRAV * gm * g * dt;
+    // holding jump = higher jump (lighter gravity while rising, for a short time)
+    var holding = inp.jump && p.hold > 0 && p.vy * g < 0;
+    p.hold -= dt; if (p.dj > 0) p.dj -= dt;
+    if (!inp.jump) p.hold = 0;
+    if (!inp.jump && p.vy * g < -200 && this.fx.BOUNCY <= 0) p.vy = -200 * g; // tap = short hop
+    p.vy += GRAV * gm * (holding ? 0.45 : 1) * g * dt;
     var term = 900; if (p.vy > term) p.vy = term; if (p.vy < -term) p.vy = -term;
     var res = moveBox(this.L, p, p.vx * dt, p.vy * dt, g);
     if (res.hitX) p.vx = 0;
     if (res.hitY) p.vy = 0;
-    if (res.landed) { p.ground = true; p.coyote = 0.1; }
+    if (res.landed) { p.ground = true; p.coyote = 0.1; p.airJumps = 1; }
     else { if (p.ground) p.coyote = 0.1; p.ground = false; }
     // grounded check when standing still (no movement into floor this frame)
     if (!p.ground) {
@@ -415,7 +421,7 @@
         var stomp = g > 0 ? (p.vy > 0 && p.y + p.h - e.y < 16) : (p.vy < 0 && e.y + e.h - p.y < 16);
         if (stomp) {
           e.dead = true; e.squash = 0;
-          p.vy = -420 * g; this.sfx('stomp');
+          p.vy = -420 * g; p.airJumps = 1; this.sfx('stomp');
           this.addViewers(5 + this.viewers * 0.01);
           if (this.r() < 0.6) this.viewerSay(STOMP, 1);
         } else this.hurt();

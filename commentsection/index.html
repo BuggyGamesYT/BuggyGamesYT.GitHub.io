@@ -26,9 +26,16 @@
   function resize() {
     dpr = Math.min(window.devicePixelRatio || 1, 2.5);
     var w = window.innerWidth, h = window.innerHeight;
+    VW = Math.round(Math.max(960, Math.min(1300, VH * w / h))); GW = VW - CW; CHATX = GW;
+    var M = 26, bs = 112;
+    TB.left = { x: M, y: VH - M - bs, w: bs, h: bs };
+    TB.right = { x: M + bs + 16, y: VH - M - bs, w: bs, h: bs };
+    TB.jump = { x: VW - M - 150, y: VH - M - 126, w: 150, h: 126 };
+    TB.pause = { x: GW - 56, y: 10, w: 44, h: 36 };
     cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
     scale = Math.min(w / VW, h / VH); ox = (w - VW * scale) / 2; oy = (h - VH * scale) / 2;
   }
+  var TB = {};
   window.addEventListener('resize', resize); resize();
 
   // ---------- save ----------
@@ -50,6 +57,7 @@
   function sfx(n) {
     switch (n) {
       case 'jump': tone(420, 0.12, 'square', 0.05, 720); break;
+      case 'jump2': tone(620, 0.12, 'square', 0.05, 1100); break;
       case 'coin': tone(990, 0.06, 'square', 0.05); setTimeout(function () { tone(1320, 0.09, 'square', 0.05); }, 55); break;
       case 'stomp': tone(200, 0.12, 'triangle', 0.12, 80); break;
       case 'die': tone(500, 0.5, 'sawtooth', 0.08, 60); break;
@@ -94,7 +102,6 @@
   document.addEventListener('visibilitychange', function () { if (document.hidden && screen === 'play') togglePause(); });
 
   function toV(cx, cy) { return { x: (cx - ox) / scale, y: (cy - oy) / scale }; }
-  var TB = { left: { x: 18, y: 420, w: 96, h: 100 }, right: { x: 126, y: 420, w: 96, h: 100 }, jump: { x: 520, y: 420, w: 104, h: 100 }, pause: { x: 586, y: 10, w: 44, h: 36 } };
   function inR(p, r) { return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h; }
 
   function onDown(id, cx, cy, isTouch) {
@@ -120,8 +127,9 @@
     var o = { left: false, right: false, jump: false };
     for (var id in touches) {
       var p = touches[id];
-      if (p.x < 240 && p.y > 330) { if (p.x < 120) o.left = true; else o.right = true; }
-      else if (p.x > 400 && p.x < GW && p.y > 300) o.jump = true;
+      var mid = TB.left.x + TB.left.w + 8;
+      if (p.x < TB.right.x + TB.right.w + 40 && p.y > VH * 0.42) { if (p.x < mid) o.left = true; else o.right = true; }
+      else if ((p.x > VW - 340 || p.x > GW * 0.55) && p.y > VH * 0.38) o.jump = true;
     }
     return o;
   }
@@ -244,6 +252,7 @@
     ctx.fill();
   }
   function drawPlayer(g, p, now) {
+    if (p.dj > 0) { ctx.strokeStyle = 'rgba(255,255,255,' + p.dj * 2.5 + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(p.x + p.w / 2, g.gsign() > 0 ? p.y + p.h + 4 : p.y - 4, 14 + (0.3 - p.dj) * 60, 4, 0, 0, Math.PI * 2); ctx.stroke(); }
     if (p.inv > 0 && Math.floor(now * 14) % 2 === 0) return;
     var flip = g.gsign() < 0;
     ctx.save(); ctx.translate(p.x + p.w / 2, p.y + p.h / 2);
@@ -341,7 +350,7 @@
     }
     // messages from the bottom up
     ctx.save(); ctx.beginPath(); ctx.rect(X, top, CW, VH - top); ctx.clip();
-    var y = VH - 10, msgs = g ? g.chat : [];
+    var y = VH - (touchMode && screen !== 'title' ? 170 : 10), msgs = g ? g.chat : [];
     ctx.font = '13px ' + FONT;
     for (var m = msgs.length - 1; m >= 0 && y > top; m--) {
       var c = msgs[m], lines, lh = 17;
@@ -387,7 +396,7 @@
     } else button('GO LIVE', GW / 2 - 120, 300, 240, 60, '#ff2e4d', function () { startGame(0); });
     button(save.muted ? 'SOUND: OFF' : 'SOUND: ON', 20, VH - 56, 150, 40, 'rgba(255,255,255,0.12)', function () { save.muted = !save.muted; persist(); });
     if (save.best) text('Best peak: ' + fmt(save.best) + ' viewers', GW / 2, 430, 14, '#ffd23f', 'center');
-    text(touchMode ? 'Hold ◀ ▶ to move, tap JUMP' : 'Move: ←→ / A D   Jump: Space / W   Pause: Esc', GW / 2, 470, 13, 'rgba(255,255,255,0.7)', 'center', false);
+    text(touchMode ? 'Hold JUMP for higher, tap again in the air to double jump' : 'Move: ←→ / A D   Jump: Space / W (hold = higher, x2 = double)   Pause: Esc', GW / 2, 470, 13, 'rgba(255,255,255,0.7)', 'center', false);
     text('A Buggy Games YT game', GW - 16, VH - 20, 12, 'rgba(255,255,255,0.5)', 'right', false);
   }
   var INTRO_LINES = [
