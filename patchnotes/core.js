@@ -53,8 +53,8 @@
     { name: 'Merge Conflict', w: 28, h: 17, need: 0, ops: [...box(28, 17), ['#', 1, 12, 26, 1], ['L', 1, 12], ['#', 18, 3, 9, 9], ['C', 11, 11], ['P', 20, 15], ['E', 23, 2], ['B', 25, 14]],
       hint: 'The old branch brought back cracked ceilings AND rocket crates. Two bugs, one level.',
       notes: { ver: '1.0.10', lines: ['Removed cracked ceilings and rocket crates for good.', 'New feature: dash momentum! Jumping mid-dash now keeps some of your speed. Totally intended.', 'Known issue: it keeps ALL of your speed.'], patch: ['ledge', 'launch'], restore: ['hyper'] } },
-    { name: 'Momentum', w: 34, h: 17, need: 0, ops: [['#', 0, 0, 34, 1], ['#', 0, 0, 1, 17], ['#', 33, 0, 1, 17], ['#', 1, 16, 8, 1], ['#', 22, 16, 11, 1], ['P', 3, 15], ['E', 30, 15], ['B', 15, 12]],
-      hint: 'Jumping in the middle of a dash keeps ALL your speed. The gap is way too wide without it. Dash (Shift), then jump right away.',
+    { name: 'Momentum', w: 34, h: 17, need: 0, ops: [['#', 0, 0, 34, 1], ['#', 0, 0, 1, 17], ['#', 33, 0, 1, 17], ['#', 1, 16, 8, 1], ['#', 21, 16, 12, 1], ['P', 3, 15], ['E', 30, 15], ['B', 15, 12]],
+      hint: 'Dash and jump at the same time keeps ALL your dash speed. The gap is way too wide without it. Run at the gap and press Dash (Shift) and Jump together a few steps before the edge.',
       notes: { ver: '1.1.1', lines: ['Dash momentum nerfed into the ground. Jumping now politely asks your speed to leave.', 'New accessibility option: you are invincible while dashing. For fairness.', 'Known issue: spikes do not count as damage while dashing. Working as intended?'], patch: ['hyper'], restore: ['iframes'] } },
     { name: 'Spike Tunnel', w: 30, h: 17, need: 0, ops: [...box(30, 17), ['#', 8, 1, 14, 14], ['^', 12, 15, 2, 1], ['P', 3, 15], ['E', 26, 15], ['B', 4, 13]],
       hint: 'No room to jump in here. Spikes cannot hurt you while you are mid-dash (Shift). We call that a feature.',
@@ -62,8 +62,8 @@
     { name: 'Save Scum', w: 26, h: 17, need: 3, ops: [...box(26, 17), ['D', 17, 1, 1, 15], ['K', 8, 15], ['^', 12, 15, 1, 1], ['P', 3, 15], ['E', 22, 15], ['B', 2, 12]],
       hint: 'Door needs 3 keys and there is 1. Die while holding a key and you respawn with it, and the key comes back. The spikes are right there...',
       notes: { ver: '1.1.3', lines: ['Dying now takes your keys away. As it should.', 'Rolled physics back to 1.0.0 to fix checkpoints. Thin walls and dash momentum may have come back with it.', 'Known issue: yes, both of them came back.'], patch: ['deathkey'], restore: ['clip', 'hyper'] } },
-    { name: 'Fast Travel', w: 40, h: 17, need: 0, ops: [['#', 0, 0, 40, 1], ['#', 0, 0, 1, 17], ['#', 39, 0, 1, 17], ['#', 1, 16, 8, 1], ['#', 22, 16, 17, 1], ['|', 30, 1, 1, 15], ['P', 3, 15], ['E', 36, 15], ['B', 26, 13]],
-      hint: 'A huge gap AND a thin wall. Hyper jump across (dash, then jump), land, then dash (Shift) through the striped wall.',
+    { name: 'Fast Travel', w: 40, h: 17, need: 0, ops: [['#', 0, 0, 40, 1], ['#', 0, 0, 1, 17], ['#', 39, 0, 1, 17], ['#', 1, 16, 8, 1], ['#', 21, 16, 18, 1], ['|', 30, 1, 1, 15], ['P', 3, 15], ['E', 36, 15], ['B', 26, 13]],
+      hint: 'A huge gap AND a thin wall. Hyper jump across (Dash and Jump together), land, then dash (Shift) through the striped wall.',
       notes: { ver: '1.1.4', lines: ['Thin walls and momentum fixed. Again. We have a whiteboard counting how many times.', 'Reverted wall physics to an old build to fix the whiteboard app.', 'Known issue: walls are climbable and spikes are optional again. Not our best week.'], patch: ['clip', 'hyper'], restore: ['walljump', 'iframes'] } },
     { name: 'Spike Ceiling', w: 24, h: 17, need: 0, ops: [...box(24, 17), ['#', 12, 1, 1, 12], ['#', 16, 4, 7, 12], ['#', 17, 1, 6, 2], ['^', 18, 3, 2, 1], ['P', 3, 15], ['E', 21, 3], ['B', 14, 7]],
       hint: 'Wall jump up the shaft, then dash (Shift) through the spikes at the top. Invincibility frames are back somehow.',
@@ -116,7 +116,7 @@
     }
     this.spawn = { x: sx * T + 6, y: (sy + 1) * T - 28 };
     this.p = { x: this.spawn.x, y: this.spawn.y, w: 20, h: 28, vx: 0, vy: 0, face: 1, onGround: false, canDash: true, dash: 0,
-      airDashed: false, hyper: false, ifr: false, lock: 0, jbuf: 0, coyote: 0, keyTimer: 0, launched: false, void: false, on: null, clipping: false };
+      airDashed: false, hyper: false, jumpAge: 99, postDash: 0, ifr: false, lock: 0, jbuf: 0, coyote: 0, keyTimer: 0, launched: false, void: false, on: null, clipping: false };
   };
 
   Game.prototype.ev = function (type, extra) {
@@ -229,13 +229,19 @@
     const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
     if (dir && p.lock === 0 && p.dash === 0) p.face = dir;
 
+    if (p.jumpAge < 99) p.jumpAge++;
+    if (p.postDash > 0) p.postDash--;
     if (inp.dashP && p.canDash && p.dash === 0) {
-      p.dash = DASHF; p.canDash = false; if (dir) p.face = dir;
+      p.canDash = false; if (dir) p.face = dir;
       this.ev('dash');
+      // forgiving hyper: dash pressed just after a ground jump also counts
+      if (LV.has('hyper') && p.jumpAge <= 10 && !p.onGround && p.vy < 0) { p.hyper = true; p.vx = p.face * HYPERV; this.ev('hyper'); }
+      else p.dash = DASHF;
     }
     const dashing = p.dash > 0;
     if (p.dash > 0) {
       p.vx = p.face * DASHV; p.vy = 0; p.dash--;
+      if (p.dash === 0 && p.onGround) p.postDash = 10;
       if (!p.onGround) p.airDashed = true;
     } else if (p.hyper) { /* keeps full dash speed */ }
     else if (p.lock > 0) p.lock--;
@@ -243,8 +249,8 @@
 
     if (p.jbuf > 0) {
       if (p.onGround || p.coyote > 0) {
-        const wasDash = p.dash > 0;
-        p.vy = JUMPV; p.jbuf = 0; p.coyote = 0; p.onGround = false; p.dash = 0; this.ev('jump');
+        const wasDash = p.dash > 0 || p.postDash > 0;
+        p.vy = JUMPV; p.jbuf = 0; p.coyote = 0; p.onGround = false; p.dash = 0; p.jumpAge = 0; this.ev('jump');
         if (wasDash && LV.has('hyper')) { p.hyper = true; p.vx = p.face * HYPERV; this.ev('hyper'); }
       }
       else if (LV.has('walljump')) {
