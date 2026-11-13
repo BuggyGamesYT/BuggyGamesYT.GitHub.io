@@ -206,10 +206,10 @@
     const L = LEVELS[lvl], final = lvl === LEVELS.length - 1;
     openModal(`
       <p class="muted">${final ? 'FINAL LEVEL' : 'LEVEL ' + (lvl + 1) + ' / ' + (LEVELS.length - 1)} · build v${verOf(lvl)}</p>
-      <h2>${lvl === 10 ? '<span style="color:#ffd23f">CONTENT UPDATE 1.1</span><br>' : ''}${esc(L.name)}</h2>
+      <h2>${lvl === 10 ? '<span style="color:#ffd23f">CONTENT UPDATE 1.1</span><br>' : lvl === 18 ? '<span style="color:#ffd23f">CONTENT UPDATE 1.2 · 81 NEW LEVELS</span><br>' : ''}${esc(L.name)}</h2>
       <div class="issue"><b>Known issue:</b> ${esc(hintOf(L))}</div>
       <p class="muted">Glitches in this build:</p>${glitchChips(G.live)}
-      <p class="muted">${save.bugs[lvl] ? '🐞 Hidden bug found' : '🐞 A hidden bug is somewhere in this level'}${save.best[lvl] ? ' · best ' + fmt(save.best[lvl]) : ''}</p>
+      <p class="muted">${save.bugs[lvl] ? '🐞 Hidden bug found' : '🐞 A hidden bug is in this level. It only shows up for a few seconds after you pause.'}${save.best[lvl] ? ' · best ' + fmt(save.best[lvl]) : ''}</p>
       ${lvl === 0 ? controlsHelp() : ''}
       <div class="row"><button class="btn green" id="bGo" data-default>Start</button><button class="btn ghost" id="bMenu">Menu</button></div>`);
     bind('bGo', () => { closeModal(); state = 'play'; prev = { jump: true, dash: true, grab: true }; showControls(); });
@@ -233,7 +233,9 @@
     if (state !== 'paused') return;
     closeModal(); state = 'play'; prev = { jump: true, dash: true, grab: true }; showControls();
     G.resume(); drain();
+    if (!G.bug && hasBug()) toast = { text: '🐞 The hidden bug is visible for 5 seconds!', t: 110 };
   }
+  const hasBug = () => G.grid && G.grid.some(row => row.includes('B'));
 
   function showNotes() {
     state = 'notes';
@@ -287,8 +289,9 @@
         if (e.glitch === 'dupe') toast = { text: 'KEY DUPLICATED. Keys: ' + G.keys, t: 120 };
       } else if (e.type === 'jump') SFX.jump();
       else if (e.type === 'dash') { SFX.dash(); }
-      else if (e.type === 'key') { SFX.key(); if (!toast || toast.t < 60) toast = { text: 'Key! ' + G.keys + (G.L.need ? ' / ' + G.L.need : ''), t: 70 }; }
-      else if (e.type === 'bug') { SFX.key(); buzz(30); toast = { text: '🐞 Hidden bug found!', t: 100 }; burst(G.p.x + 10, G.p.y + 10, 14); }
+      else if (e.type === 'key') { SFX.key(); if (!toast || toast.t < 60) toast = { text: 'Key! ' + G.keys + (G.need ? ' / ' + G.need : ''), t: 70 }; }
+      else if (e.type === 'bug') { SFX.key(); buzz(30); toast = { text: '🐞 Hidden bug squashed!', t: 100 }; burst(G.p.x + 10, G.p.y + 10, 14); }
+      else if (e.type === 'stage') { camX = null; trail = []; toast = { text: 'Entering the glitch room. Checkpoint saved.', t: 120 }; SFX.door(); }
       else if (e.type === 'door') { SFX.door(); toast = { text: 'Door unlocked', t: 70 }; }
       else if (e.type === 'toast') toast = { text: e.text, t: 120 };
       else if (e.type === 'die') { deaths++; SFX.die(); buzz(60); shake = 10; burst(G.p.x + 10, G.p.y + 14, 26); }
@@ -377,11 +380,11 @@
     cx.restore();
 
     // HUD (screen space, inside the view)
-    cx.fillStyle = 'rgba(10,8,20,0.7)'; cx.fillRect(8, 8, 250, G.L.need ? 46 : 28);
+    cx.fillStyle = 'rgba(10,8,20,0.7)'; cx.fillRect(8, 8, 250, G.need ? 46 : 28);
     cx.font = 'bold 14px ui-monospace, Menlo, Consolas, monospace'; cx.textBaseline = 'top'; cx.textAlign = 'left';
     cx.fillStyle = '#fff'; cx.fillText((lvl === LEVELS.length - 1 ? 'FINAL' : 'LV ' + (lvl + 1)) + ' · ' + G.L.name, 16, 14);
     if (G.bug || save.bugs[lvl]) { cx.textAlign = 'right'; cx.fillStyle = '#39ff88'; cx.fillText('🐞', 250, 14); cx.textAlign = 'left'; }
-    if (G.L.need) { cx.fillStyle = '#ffd23f'; cx.fillText('KEYS ' + G.keys + '   door needs ' + G.L.need, 16, 34); }
+    if (G.need) { cx.fillStyle = '#ffd23f'; cx.fillText('KEYS ' + G.keys + '   door needs ' + G.need, 16, 34); }
     cx.textAlign = 'right'; cx.fillStyle = '#9a92c9'; cx.font = '12px ui-monospace, Menlo, Consolas, monospace';
     cx.fillText('build v' + verOf(lvl), VW - 12, VH - 20);
 
@@ -452,7 +455,13 @@
       cx.fillStyle = `rgba(57,255,136,${pu * 0.35})`; cx.fillRect(x - 4, y - 28, T + 8, T + 28);
       cx.strokeStyle = '#39ff88'; cx.lineWidth = 3; cx.strokeRect(x + 1.5, y - 26, T - 3, T + 24.5);
       cx.fillStyle = '#39ff88'; cx.font = 'bold 10px ui-monospace, monospace'; cx.textAlign = 'center'; cx.textBaseline = 'alphabetic'; cx.fillText('EXIT', x + T / 2, y - 32);
+    } else if (ch === 'G') {
+      const pu = 0.5 + Math.sin(gt * 0.15) * 0.3;
+      cx.fillStyle = `rgba(176,38,255,${pu * 0.5})`; cx.fillRect(x + 4, y, T - 8, T);
+      cx.fillStyle = hsl((gt * 6 + r * 40) % 360, 100, 65, 0.8); cx.fillRect(x + 4 + Math.random() * (T - 10), y + Math.random() * T, 3, 6);
+      if (G.tile(c, r - 1) !== 'G') { cx.fillStyle = '#e6c8ff'; cx.font = 'bold 10px ui-monospace, monospace'; cx.textAlign = 'center'; cx.textBaseline = 'alphabetic'; cx.fillText('GLITCH ROOM ▶', x + T / 2 - 20, y - 6); }
     } else if (ch === 'B') {
+      if (!(G.reveal > 0) || (G.reveal < 60 && (gt >> 2) % 2)) return;
       const b = Math.sin(gt * 0.12 + c) * 2, bx = x + 16, by = y + 16 + b;
       cx.fillStyle = 'rgba(57,255,136,0.18)'; cx.beginPath(); cx.arc(bx, by, 13, 0, 6.28); cx.fill();
       cx.strokeStyle = '#1a6b3a'; cx.lineWidth = 2;

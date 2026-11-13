@@ -82,7 +82,96 @@
       notes: { ver: '2.0.0', lines: ['Removed the pause menu.', 'Removed walls you can pause through. It was all the walls.', 'Patch Notes is now officially 100% glitch free. Thanks for playing!'], patch: ['pauseclip'] } }
   ];
 
+
+  // ---------- Content Update 1.2: generated levels (seeded, always the same) ----------
+  const TOTAL = 100, NBASE = LEVELS.length - 1; // last hand-made level is the finale
+  const baseLive = [];
+  (function () {
+    const live = new Set(START_LIVE);
+    for (let i = 0; i < NBASE; i++) {
+      baseLive.push([...live]);
+      const n = LEVELS[i].notes; (n.patch || []).forEach(g => live.delete(g)); (n.restore || []).forEach(g => live.add(g));
+    }
+  })();
+  for (let i = 0; i < NBASE; i++) LEVELS[i].live = baseLive[i];
+  const FINALE = LEVELS.pop();
+  let seed = 1337;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  const pick = a => a[Math.floor(rnd() * a.length)];
+  const NAMES_A = ['Null', 'Legacy', 'Spaghetti', 'Hotfix', 'Crunch', 'Day One', 'Off By One', 'Race', 'Stack', 'Memory', 'Feature', 'Force Push', 'Cherry Pick', 'Code Freeze', 'Merge', 'Edge', 'Infinite', 'Broken', 'Cursed', 'Unpatched', 'Beta', 'Alpha', 'Nightly', 'Rollback', 'Ghost'];
+  const NAMES_B = ['Pointer', 'Code', 'Overflow', 'Leak', 'Condition', 'Case', 'Loop', 'Branch', 'Build', 'Creep', 'Patch', 'Crash', 'Hitbox', 'Collision', 'Frame', 'Physics', 'Save', 'Spawn', 'Exception', 'Commit'];
+  const PATCH_LINE = {
+    clip: ['Thin walls thickened. Again.', 'Speed clipping patched. Walls have been told to try harder.'],
+    walljump: ['Wall jumping removed and the jar has been sealed.', 'Walls are no longer stairs.'],
+    dupe: ['Key duplication fixed. The pause menu is on probation.', 'Keys now have serial numbers.'],
+    ledge: ['Cracked ceilings re-glued.', 'Corners are no longer doors.'],
+    launch: ['Crates de-rocketed.', 'Grabbing crates no longer files a flight plan.'],
+    oob: ['Floor under the floor removed. More concrete.', 'The void is closed for maintenance.'],
+    hyper: ['Dash momentum nerfed.', 'Jumping now drops your speed like it is hot.'],
+    iframes: ['Spikes are spiky again, even mid-dash.', 'Dash invincibility revoked.'],
+    deathkey: ['Dying takes your keys again.', 'Checkpoints no longer remember keys.']
+  };
+  const ISSUE_LINE = {
+    clip: 'thin walls feel thin', walljump: 'walls feel climbable', dupe: 'pausing near keys acts weird', ledge: 'cracked ceilings are cracking',
+    launch: 'crates smell like rocket fuel', oob: 'there is a floor under the floor', hyper: 'dash momentum is back', iframes: 'spikes forget to hurt dashers', deathkey: 'keys survive death'
+  };
+  const FILLER = ['Hired 81 new level designers. None of them talked to each other.', 'Fixed a typo in the credits. Introduced 4 new bugs.', 'QA has been replaced with a rubber duck.', 'Optimized the game. It now crashes 12% faster.',
+    'Removed a comment that said "do not remove this comment". Things got worse.', 'Updated the engine. Nobody knows what changed.', 'The intern found the backup branch. We are investigating.',
+    'Added more levels so you stop finding glitches in the old ones.', 'Renamed bugs to "surprise mechanics".', 'Greg is on vacation. Greg wrote this patch on vacation.'];
+  const TEMPLATES = [];
+  for (let i = 0; i < NBASE; i++) TEMPLATES.push(i);
+  let order = [], last = -1;
+  const gen = [];
+  for (let n = 0; gen.length < TOTAL - NBASE - 1; n++) {
+    if (!order.length) { order = TEMPLATES.slice().sort(() => rnd() - 0.5); if (order[0] === last) order.push(order.shift()); }
+    const t = order.shift(); last = t;
+    const B = LEVELS[t], k = gen.length;
+    const pIdx = B.ops.findIndex(o => o[0] === 'P'), P = B.ops[pIdx];
+    const F = P[2] + 1;
+    const A = 9 + Math.min(10, Math.floor(k / 9)) + Math.floor(rnd() * 4);
+    const ops = [['#', 0, 0, A, 1], ['#', 0, 0, 1, 17]];
+    const pits = new Set();
+    let x = 4;
+    const obs = [];
+    while (x < A - 3) {
+      const kind = pick(['spike', 'spike', 'block', 'pit', 'tall']);
+      const wdt = kind === 'tall' || kind === 'block' ? 1 : (rnd() < 0.5 ? 1 : 2);
+      if (x + wdt > A - 3) break;
+      obs.push([kind, x, wdt]);
+      if (kind === 'pit') for (let c = x; c < x + wdt; c++) pits.add(c);
+      x += wdt + 4 + Math.floor(rnd() * 3);
+    }
+    for (let c = 1; c < A; c++) if (!pits.has(c)) ops.push(['#', c, F, 1, 17 - F]);
+    for (const [kind, ox, wdt] of obs) {
+      if (kind === 'spike') ops.push(['^', ox, F - 1, wdt, 1]);
+      else if (kind === 'block') ops.push(['#', ox, F - 1, 1, 1]);
+      else if (kind === 'tall') ops.push(['#', ox, F - 2, 1, 2]);
+    }
+    ops.push(['#', A - 1, 0, 1, F - 2]);
+    ops.push(['G', A - 2, F - 2, 1, 2]);
+    ops.push(['P', 2, F - 1]);
+    const name = NAMES_A[(k * 7 + 3) % NAMES_A.length] + ' ' + NAMES_B[(k * 11 + 5) % NAMES_B.length];
+    gen.push({ name, w: A, h: 17, need: 0, room: B, ops, hint: B.hint, live: baseLive[t], tpl: t, approach: A, floor: F, notes: { ver: '1.2.' + (k + 1) } });
+  }
+  LEVELS.push(...gen, FINALE);
+  // notes for the last hand-made level and every generated level come from what changes next
+  for (let i = NBASE - 1; i < LEVELS.length - 1; i++) {
+    const L = LEVELS[i], cur = new Set(L.live), nxt = new Set(i + 1 === LEVELS.length - 1 ? [] : LEVELS[i + 1].live);
+    const patch = [...cur].filter(g => !nxt.has(g)), restore = [...nxt].filter(g => !cur.has(g));
+    L.notes.patch = patch; L.notes.restore = restore;
+    if (i === NBASE - 1) { L.notes.lines = [L.notes.lines[0], 'Content Update 1.2 is here: 81 brand new levels! Every one passed QA. QA is still my cousin.', 'Known issue: old glitches keep coming back, one level at a time.']; continue; }
+    const lines = [];
+    patch.forEach(g => lines.push(pick(PATCH_LINE[g])));
+    lines.push(pick(FILLER));
+    if (i + 1 === LEVELS.length - 1) lines.push('All glitches gone. Only the pause menu is left, and we are watching it.');
+    else if (restore.length) lines.push('Known issue: ' + restore.map(g => ISSUE_LINE[g]).join(', and ') + '.');
+    else lines.push('Known issue: ' + [...nxt].map(g => ISSUE_LINE[g]).join(', and ') + ' (still).');
+    L.notes.lines = lines;
+  }
+
   function liveFor(idx) {
+    if (idx === LEVELS.length - 1) return new Set(['pauseclip']);
+    if (LEVELS[idx] && LEVELS[idx].live) return new Set(LEVELS[idx].live);
     const live = new Set(START_LIVE);
     for (let i = 0; i < idx && i < LEVELS.length; i++) {
       const n = LEVELS[i].notes;
@@ -104,10 +193,16 @@
 
   Game.prototype.load = function (idx) {
     const L = LEVELS[idx];
-    this.idx = idx; this.L = L; this.grid = build(L); this.cols = L.w; this.rows = L.h;
-    this.W = L.w * T; this.B = L.h * T;
+    this.idx = idx; this.L = L;
     this.live = liveFor(idx); this.used = new Set();
-    this.keys = 0; this.crates = []; this.frame = 0; this.done = false; this.dead = 0; this.doorMsg = 0; this.kept = 0; this.bug = false;
+    this.keys = 0; this.frame = 0; this.done = false; this.dead = 0; this.doorMsg = 0; this.kept = 0; this.bug = false; this.reveal = 0;
+    this.stage = 1; this.loadRoom(L);
+  };
+
+  // a generated level has two stages: the obstacle run (L), then the glitch room (L.room). Dying in stage 2 respawns in stage 2.
+  Game.prototype.loadRoom = function (R) {
+    this.R = R; this.need = R.need; this.grid = build(R); this.cols = R.w; this.rows = R.h;
+    this.W = R.w * T; this.B = R.h * T; this.crates = [];
     let sx = 2, sy = 2;
     for (let r = 0; r < this.rows; r++) for (let c = 0; c < this.cols; c++) {
       const ch = this.grid[r][c];
@@ -187,14 +282,16 @@
   };
 
   Game.prototype.respawn = function () {
-    const idx = this.idx, used = this.used, live = this.live, kept = this.kept, bug = this.bug;
-    this.load(idx); this.used = used; this.live = live;
+    const idx = this.idx, used = this.used, live = this.live, kept = this.kept, bug = this.bug, reveal = this.reveal, stage = this.stage;
+    this.load(idx); this.used = used; this.live = live; this.reveal = reveal;
+    if (stage === 2) { this.stage = 2; this.loadRoom(this.L.room); }
     if (bug) { this.bug = true; for (const row of this.grid) for (let c = 0; c < row.length; c++) if (row[c] === 'B') row[c] = '.'; }
     if (kept > 0 && live.has('deathkey')) { this.keys = kept; this.ev('deathkey'); }
   };
 
   Game.prototype.pause = function () {
     const p = this.p;
+    this.reveal = 300;
     if (p.keyTimer > 0 && this.live.has('dupe')) { this.keys++; p.keyTimer = 0; this.ev('dupe'); }
   };
 
@@ -216,6 +313,7 @@
     if (this.dead) { if (--this.dead === 0) this.respawn(); return; }
     const p = this.p, LV = this.live;
     if (p.keyTimer > 0) p.keyTimer--;
+    if (this.reveal > 0) this.reveal--;
     if (this.doorMsg > 0) this.doorMsg--;
 
     // crates
@@ -317,16 +415,17 @@
     if (kc) { this.grid[kc.r][kc.c] = '.'; this.keys++; p.keyTimer = 40; this.ev('key'); }
     const dc = this.overlapsChar({ x: p.x - 3, y: p.y + 2, w: p.w + 6, h: p.h - 4 }, 'D');
     if (dc) {
-      if (this.keys >= this.L.need) { this.keys -= this.L.need; this.openDoor(dc.c, dc.r); this.ev('door'); }
-      else if (!this.doorMsg) { this.doorMsg = 90; this.ev('toast', { text: 'Locked. Needs ' + this.L.need + ' keys, you have ' + this.keys + '.' }); }
+      if (this.keys >= this.need) { this.keys -= this.need; this.openDoor(dc.c, dc.r); this.ev('door'); }
+      else if (!this.doorMsg) { this.doorMsg = 90; this.ev('toast', { text: 'Locked. Needs ' + this.need + ' keys, you have ' + this.keys + '.' }); }
     }
     const bc = this.overlapsChar(p, 'B', 2);
-    if (bc) { this.grid[bc.r][bc.c] = '.'; this.bug = true; this.ev('bug'); }
+    if (bc && this.reveal > 0) { this.grid[bc.r][bc.c] = '.'; this.bug = true; this.ev('bug'); }
     if (p.dash === 0) p.ifr = false;
     if (this.spiked()) {
       if (p.dash > 0 && LV.has('iframes')) { if (!p.ifr) { p.ifr = true; this.ev('iframes'); } }
       else return this.die('spikes');
     }
+    if (this.overlapsChar(p, 'G', 2) && this.stage === 1 && this.L.room) { this.stage = 2; this.loadRoom(this.L.room); this.ev('stage'); return; }
     if (this.overlapsChar(p, 'E', 4)) { this.done = true; this.ev('exit'); }
   };
 
