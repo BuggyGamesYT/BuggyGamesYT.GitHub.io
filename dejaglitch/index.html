@@ -35,6 +35,11 @@
   #touch button { width: 78px; height: 78px; border-radius: 50%; border: 2px solid rgba(80,255,150,.55); background: rgba(10,40,20,.45); color: #bfffd4; font: inherit; font-size: 22px; font-weight: 700; touch-action: none; }
   #touch button.on { background: rgba(60,255,140,.45); color: #031; }
   #touch button.slow { font-size: 14px; }
+  @media (orientation: portrait) {
+    #touch .grp { flex-wrap: wrap-reverse; gap: 12px; max-width: calc(50vw - 22px); bottom: max(28px, env(safe-area-inset-bottom)); }
+    #touch .r { justify-content: flex-end; }
+    #touch button { width: min(78px, calc(25vw - 22px)); height: min(78px, calc(25vw - 22px)); }
+  }
   #touch .code { display: none; }
   #touch.red .code { display: block; }
   #pauseBtn { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); z-index: 6; display: none; width: 44px; height: 44px; border-radius: 8px; border: 1px solid #2d9c55; background: rgba(2,14,6,.7); color: #9fffc0; font: inherit; font-size: 18px; }
@@ -46,7 +51,7 @@
 
 <div id="touch">
   <div class="grp l"><button data-k="left" aria-label="Left">◀</button><button data-k="right" aria-label="Right">▶</button><button data-k="run" class="slow" aria-label="Run">RUN</button></div>
-  <div class="grp r"><button data-k="jump" aria-label="Jump">▲</button><button data-k="sight" class="slow code" aria-label="Code Sight">CODE</button><button data-k="slow" class="slow" aria-label="Slow-mo">SLOW</button></div>
+  <div class="grp r"><button data-k="jump" aria-label="Jump">▲</button><button data-k="slow" class="slow" aria-label="Slow-mo">SLOW</button><button data-k="sight" class="slow code" aria-label="Code Sight">CODE</button></div>
 </div>
 <button id="pauseBtn" aria-label="Pause">II</button>
 
