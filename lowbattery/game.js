@@ -54,7 +54,7 @@ const WALLWORDS = [
 ];
 
 // ---------- state ----------
-let S = null, gateOpen = false, mode = 'title';
+let S = null, gateOpen = false, mode = 'title', zMode = false;
 const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
 const dk = document.createElement('canvas'), dctx = dk.getContext('2d');
 let VW = 0, VH = 0, DPR = 1, TS = 40;
@@ -156,6 +156,8 @@ addEventListener('keydown', e => {
   if (k === 'm') setMute(!muted);
 });
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+cv.addEventListener('mousedown', e => { if (e.button === 0) { mouse.down = true; shoot(); } });
+addEventListener('mouseup', () => { mouse.down = false; });
 cv.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; mouse.active = true; });
 cv.addEventListener('touchstart', e => {
   isTouch = true; document.getElementById('touch').classList.add('on'); mouse.active = false;
@@ -184,6 +186,8 @@ const press = (el, down, up) => { el.addEventListener('touchstart', e => { e.pre
 press(bHide, () => { hideHeld = true; bHide.classList.add('on'); }, () => { hideHeld = false; bHide.classList.remove('on'); });
 press(bLight, () => toggleLight());
 press(document.getElementById('bPause'), () => pause(true));
+const bShoot = document.getElementById('bShoot');
+press(bShoot, () => { bShoot.classList.add('on'); shoot(); }, () => bShoot.classList.remove('on'));
 function toggleLight() { if (!S) return; S.lightOn = !S.lightOn; blip(S.lightOn ? 1800 : 1200, 0.04, 'square', 0.08); }
 
 // ---------- game ----------
@@ -199,7 +203,8 @@ function newGame() {
     t: 0, msg: '', msgT: 0, msgC: '#ddd', shake: 0, hurt: 0, flick: 1, flickT: 0,
     whisperT: 18, charging: false, wasCharging: false, caughtCount: 0, still: 0, step: 0, hidden: false,
     objective: 'Find a way out.', ended: false,
-    zombies: ZSPAWN.map(([x, y]) => ({ x, y, path: [], repath: Math.random(), state: 'wander', groan: 2 + Math.random() * 5, ph: Math.random() * 6, stun: 0 }))
+    ammo: 12, shootCd: 0, flash: 0, tracer: null, bodies: [],
+    zombies: (zMode ? ZSPAWN : []).map(([x, y]) => ({ x, y, hp: 2, face: Math.random() * 6.28, path: [], repath: Math.random(), state: 'wander', groan: 2 + Math.random() * 5, ph: Math.random() * 6, stun: 0 }))
   };
   showMsg('Where... is everyone?', 3);
   setTimeout(() => S && showMsg(S.sim ? "Can't read your real battery here. Using the phone's own battery." : 'Your light runs on your real battery: ' + pct() + '%.', 4), 3200);
@@ -261,7 +266,7 @@ function update(dt) {
   if (!BAT.native && BAT.api) { BAT.level = BAT.api.level; BAT.charging = BAT.api.charging; }
   // charging
   const ch = onCharger();
-  if (ch && !S.visitedCk.has(ch)) { S.visitedCk.add(ch); S.ck = { x: ch.x, y: ch.y }; showMsg(S.sim ? 'Charging spot. Stand here to charge. (checkpoint)' : 'A working outlet. Plug in your real phone to charge. (checkpoint)', 4, '#7c7'); blip(880, 0.15, 'sine', 0.15); }
+  if (ch && !S.visitedCk.has(ch)) { S.visitedCk.add(ch); S.ck = { x: ch.x, y: ch.y }; if (zMode) S.ammo += 8; showMsg(S.sim ? 'Charging spot. Stand here to charge. (checkpoint)' : 'A working outlet. Plug in your real phone to charge. (checkpoint)', 4, '#7c7'); blip(880, 0.15, 'sine', 0.15); }
   S.charging = S.sim ? !!ch : BAT.charging;
   if (S.charging && !S.wasCharging) { showMsg('Charging... the light steadies.', 3, '#7c7'); blip(660, 0.1); blip(990, 0.15); S.whisperT = 5; }
   if (!S.charging && S.wasCharging) showMsg('Unplugged.', 2);
@@ -318,6 +323,7 @@ function update(dt) {
   updateDimmer(dt);
   if (mode !== 'play') return;
   updateZombies(dt);
+  if (zMode) updateGun(dt);
   if (S.msgT > 0) S.msgT -= dt;
   if (S.shake > 0) S.shake -= dt; if (S.hurt > 0) S.hurt -= dt;
 }
@@ -396,12 +402,38 @@ function updateZombies(dt) {
     const spd = (z.state === 'hunt' ? 1.15 + fuses * 0.12 : 0.55) * (0.85 + 0.15 * Math.sin(S.t * 3 + z.ph));
     if (z.path.length) {
       const n = z.path[0], dx = n.x - z.x, dy = n.y - z.y, m = Math.hypot(dx, dy);
-      if (m < 0.08) z.path.shift(); else { const st = Math.min(m, spd * dt); z.x += dx / m * st; z.y += dy / m * st; }
+      if (m < 0.08) z.path.shift(); else { const st = Math.min(m, spd * dt); z.x += dx / m * st; z.y += dy / m * st; z.face += angDiff(Math.atan2(dy, dx), z.face) * Math.min(1, dt * 6); }
     }
     z.groan -= dt;
     if (z.groan <= 0) { z.groan = 4 + Math.random() * 6; if (dist < 9) { blip(90 + Math.random() * 40, 0.7, 'sawtooth', 0.12 * (1 - dist / 9), 0.6); } }
     if (dist < 0.5) { caught(true); return; }
   }
+}
+
+function shoot() {
+  if (!S || mode !== 'play' || !zMode || S.shootCd > 0) return;
+  if (S.ammo <= 0) { blip(1500, 0.03, 'square', 0.08); showMsg('Out of ammo. Find a charging spot.', 2, '#d95'); S.shootCd = 0.3; return; }
+  S.ammo--; S.shootCd = 0.38; S.flash = 0.08; S.shake = Math.max(S.shake, 0.12);
+  noise(0.25, 0.5, 1200); blip(70, 0.25, 'square', 0.25, 0.4);
+  const cx = Math.cos(S.aim), cy = Math.sin(S.aim);
+  let r = 0; while (r < 12) { r += 0.1; if (blocksLight(S.px + cx * r, S.py + cy * r)) break; }
+  let hit = null, best = r;
+  for (const z of S.zombies) {
+    const rx = z.x - S.px, ry = z.y - S.py, along = rx * cx + ry * cy; if (along < 0 || along > best) continue;
+    const off = Math.abs(rx * cy - ry * cx); if (off < 0.42) { hit = z; best = along; }
+  }
+  S.tracer = { x: S.px + cx * best, y: S.py + cy * best, t: 0.07 };
+  if (hit) {
+    hit.hp -= best < 2.5 ? 2 : 1; hit.stun = 0.5; hit.x += cx * 0.25; hit.y += cy * 0.25; noise(0.15, 0.3, 500);
+    if (hit.hp <= 0) { S.zombies.splice(S.zombies.indexOf(hit), 1); S.bodies.push({ x: hit.x, y: hit.y, a: S.aim }); blip(110, 0.5, 'sawtooth', 0.15, 0.3); if (!S.zombies.length) showMsg('That was the last zombie.', 3, '#fd6'); }
+  }
+  // gunshots are loud: nearby zombies come running
+  for (const z of S.zombies) if (Math.hypot(z.x - S.px, z.y - S.py) < 11) { z.state = 'hunt'; z.repath = 0; z.lost = 0; }
+}
+function updateGun(dt) {
+  if (S.shootCd > 0) S.shootCd -= dt; if (S.flash > 0) S.flash -= dt;
+  if (S.tracer) { S.tracer.t -= dt; if (S.tracer.t <= 0) S.tracer = null; }
+  if (keys['e'] || keys['shift'] || mouse.down) shoot();
 }
 
 function caught(byZombie) {
@@ -478,18 +510,25 @@ function render() {
   c.fillStyle = '#050505';
   c.beginPath(); c.ellipse(DX, DY, TS * (0.36 + wob), TS * (0.48 - wob), 0, 0, 7); c.fill();
   for (let i = 0; i < 6; i++) { const a = S.t * 2 + i; c.beginPath(); c.arc(DX + Math.cos(a) * TS * 0.4, DY + Math.sin(a * 1.3) * TS * 0.45, TS * 0.12, 0, 7); c.fill(); }
-  // zombies
+  // bodies
+  for (const b of S.bodies) { const X = wx(b.x), Y = wy(b.y); c.save(); c.translate(X, Y); c.rotate(b.a); c.fillStyle = '#2e3826'; c.fillRect(-TS * 0.3, -TS * 0.2, TS * 0.6, TS * 0.4); c.fillStyle = '#4a1010'; c.beginPath(); c.arc(TS * 0.1, 0, TS * 0.3, 0, 7); c.globalAlpha = 0.6; c.fill(); c.globalAlpha = 1; c.restore(); }
+  // zombies (drawn rotated to face where they walk, arms reaching forward)
   for (const z of S.zombies) {
     const X = wx(z.x), Y = wy(z.y); if (X < -TS || Y < -TS || X > VW + TS || Y > VH + TS) continue;
-    const sw = Math.sin(S.t * 4 + z.ph) * TS * 0.05;
-    c.fillStyle = '#3d4a33'; c.beginPath(); c.arc(X + sw, Y, TS * 0.27, 0, 7); c.fill();
-    c.fillStyle = '#5d6b46'; c.beginPath(); c.arc(X + sw, Y - TS * 0.04, TS * 0.15, 0, 7); c.fill();
-    c.fillStyle = '#3d4a33'; c.fillRect(X - TS * 0.32, Y - TS * 0.32, TS * 0.1, TS * 0.3); c.fillRect(X + TS * 0.22, Y - TS * 0.32, TS * 0.1, TS * 0.3);
-    c.fillStyle = z.state === 'hunt' ? '#c22' : '#666'; c.fillRect(X + sw - TS * 0.08, Y - TS * 0.08, TS * 0.05, TS * 0.05); c.fillRect(X + sw + TS * 0.03, Y - TS * 0.08, TS * 0.05, TS * 0.05);
+    const sw = Math.sin(S.t * 4 + z.ph) * TS * 0.04;
+    c.save(); c.translate(X, Y); c.rotate(z.face);
+    c.fillStyle = '#3d4a33';
+    c.fillRect(TS * 0.05, -TS * 0.27 + sw, TS * 0.32, TS * 0.09); c.fillRect(TS * 0.05, TS * 0.18 - sw, TS * 0.32, TS * 0.09);
+    c.fillStyle = '#5d6b46'; c.fillRect(TS * 0.33, -TS * 0.28 + sw, TS * 0.07, TS * 0.11); c.fillRect(TS * 0.33, TS * 0.17 - sw, TS * 0.07, TS * 0.11);
+    c.fillStyle = '#3d4a33'; c.beginPath(); c.ellipse(0, 0, TS * 0.2, TS * 0.28, 0, 0, 7); c.fill();
+    c.fillStyle = z.hp < 2 ? '#6b4a3a' : '#5d6b46'; c.beginPath(); c.arc(TS * 0.04, 0, TS * 0.15, 0, 7); c.fill();
+    c.fillStyle = z.state === 'hunt' ? '#c22' : '#666'; c.fillRect(TS * 0.11, -TS * 0.08, TS * 0.05, TS * 0.05); c.fillRect(TS * 0.11, TS * 0.03, TS * 0.05, TS * 0.05);
+    c.restore();
   }
   // player
   { const X = wx(S.px), Y = wy(S.py); c.fillStyle = '#4a5866'; c.beginPath(); c.arc(X, Y, TS * 0.28, 0, 7); c.fill(); c.fillStyle = '#c9a57f'; c.beginPath(); c.arc(X, Y, TS * 0.16, 0, 7); c.fill();
-    c.fillStyle = '#ddd'; c.fillRect(X + Math.cos(S.aim) * TS * 0.28 - 3, Y + Math.sin(S.aim) * TS * 0.28 - 3, 6, 6); }
+    c.fillStyle = '#ddd'; c.fillRect(X + Math.cos(S.aim) * TS * 0.28 - 3, Y + Math.sin(S.aim) * TS * 0.28 - 3, 6, 6);
+    if (zMode) { c.save(); c.translate(X, Y); c.rotate(S.aim); c.fillStyle = '#222'; c.fillRect(TS * 0.12, TS * 0.1, TS * 0.3, TS * 0.07); c.restore(); } }
 
   // ---- darkness ----
   const b = beam();
@@ -511,6 +550,7 @@ function render() {
   // charger glow
   for (const ch of CHARGERS) { const X = wx(ch.x), Y = wy(ch.y); const r2 = g.createRadialGradient(X, Y, 0, X, Y, TS * 0.9); r2.addColorStop(0, 'rgba(0,0,0,.6)'); r2.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = r2; g.fillRect(X - TS, Y - TS, TS * 2, TS * 2); }
   if (gateOpen) { const X = wx(11), Y = wy(23.5); const r2 = g.createRadialGradient(X, Y, 0, X, Y, TS * 2.5); r2.addColorStop(0, 'rgba(0,0,0,.7)'); r2.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = r2; g.fillRect(X - TS * 3, Y - TS * 3, TS * 6, TS * 6); }
+  if (S.flash > 0) { const r3 = g.createRadialGradient(PX, PY, 0, PX, PY, TS * 5); r3.addColorStop(0, 'rgba(0,0,0,.9)'); r3.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = r3; g.fillRect(PX - TS * 5, PY - TS * 5, TS * 10, TS * 10); }
   c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(dk, 0, 0); c.setTransform(DPR, 0, 0, DPR, 0, 0);
   // warm beam tint
   if (b > 0.01 && lastPoly.length) {
@@ -518,6 +558,7 @@ function render() {
     c.beginPath(); c.moveTo(PX, PY); for (const [x, y] of lastPoly) c.lineTo(wx(x), wy(y)); c.closePath(); c.fill();
     c.globalCompositeOperation = 'source-over';
   }
+  if (S.tracer) { c.strokeStyle = 'rgba(255,230,150,.85)'; c.lineWidth = 2; c.beginPath(); c.moveTo(PX + Math.cos(S.aim) * TS * 0.42, PY + Math.sin(S.aim) * TS * 0.42); c.lineTo(wx(S.tracer.x), wy(S.tracer.y)); c.stroke(); }
   // dimmer eyes glint in the dark
   const dist = Math.hypot(d.x - S.px, d.y - S.py);
   if (dist < 7 && !d.lit && d.stun <= 0) {
@@ -544,6 +585,7 @@ function hud() {
   c.fillText(p + '%' + (S.charging ? ' ⚡' : ''), x + 56, y + 16);
   c.font = '11px ui-monospace, monospace'; c.fillStyle = '#888'; c.fillText(S.sim ? 'IN-GAME BATTERY' : 'REAL BATTERY', x, y + 36);
   c.fillStyle = '#fd6'; c.font = '13px ui-monospace, monospace'; c.fillText('FUSES ' + (S.carried + S.inserted) + '/3' + (S.lightOn ? '' : '   LIGHT OFF') + (S.hidden ? '   HIDING' : ''), x, y + 54);
+  if (zMode) { c.fillStyle = S.ammo ? '#ddd' : '#d55'; c.fillText('AMMO ' + S.ammo + '   ZOMBIES ' + S.zombies.length, x, y + 72); }
   c.textAlign = 'center'; c.fillStyle = '#aaa'; c.font = '13px ui-monospace, monospace';
   c.fillText(S.objective, VW / 2, VH - (isTouch ? 118 : 22));
   if (S.msgT > 0) { c.globalAlpha = Math.min(1, S.msgT); c.fillStyle = S.msgC; c.font = `bold ${VW < 500 ? 15 : 18}px ui-monospace, monospace`; c.fillText(S.msg, VW / 2, VH * 0.22); }
@@ -576,7 +618,9 @@ function refreshBatInfo() {
   if (BAT.real) { $('batInfo').innerHTML = `Your battery: <b>${Math.round(BAT.level * 100)}%</b>${BAT.charging ? ' (charging)' : ''}. That's how bright your light will be.${ends}`; $('simRow').style.display = ''; }
   else { $('batInfo').innerHTML = `Can't read your real battery here, so you'll get an in-game battery that drains.${ends}`; $('simRow').style.display = 'none'; }
 }
-$('startBtn').onclick = () => { audio(); if (AC && AC.state === 'suspended') AC.resume(); newGame(); mode = 'play'; panel(null); };
+const startGame = z => { zMode = z; document.getElementById('touch').classList.toggle('zm', z); audio(); if (AC && AC.state === 'suspended') AC.resume(); newGame(); mode = 'play'; panel(null); };
+$('zStartBtn').onclick = () => startGame(true);
+$('startBtn').onclick = () => { startGame(false); return; audio(); if (AC && AC.state === 'suspended') AC.resume(); newGame(); mode = 'play'; panel(null); };
 $('helpBtn').onclick = () => panel('help');
 $('helpBack').onclick = () => panel('title');
 $('noteClose').onclick = closeNote;

@@ -43,6 +43,8 @@
   #touch button.on { background: rgba(224,48,58,.6); color: #fff; }
   #bHide { right: max(22px, env(safe-area-inset-right)); bottom: max(26px, env(safe-area-inset-bottom)); }
   #bLight { right: max(108px, calc(env(safe-area-inset-right) + 86px)); bottom: max(26px, env(safe-area-inset-bottom)); width: 58px !important; height: 58px !important; }
+  #bShoot { display: none; right: max(22px, env(safe-area-inset-right)); bottom: max(112px, calc(env(safe-area-inset-bottom) + 90px)); }
+  #touch.zm #bShoot { display: block; }
   #bPause { right: max(14px, env(safe-area-inset-right)); top: max(12px, env(safe-area-inset-top)); width: 44px !important; height: 44px !important; font-size: 16px !important; }
 </style>
 </head>
@@ -53,6 +55,7 @@
   <button id="bLight">LIGHT</button>
   <button id="bHide">HIDE</button>
   <button id="bPause">II</button>
+  <button id="bShoot">SHOOT</button>
 </div>
 
 <div class="panel show" id="title">
@@ -62,7 +65,8 @@
     <p>You fell asleep on the last bus. You woke up locked in the depot. The power is out, and your phone is the only light you've got.</p>
     <div id="batInfo">Checking your battery...</div>
     <label class="opt" id="simRow"><input type="checkbox" id="simChk" /> Use the in-game battery instead</label>
-    <button class="b" id="startBtn">Start</button>
+    <button class="b" id="startBtn">Original</button>
+    <button class="b" id="zStartBtn" style="background:#7a9a52">Zombies</button>
     <button class="b alt" id="helpBtn">How to play</button>
     <div class="small">© 2026 Buggy Games YT. All rights reserved.</div>
   </div>
@@ -76,13 +80,14 @@
       <li>Your flashlight is as bright as your <b>real phone battery</b>. Low battery = dim, flickering light.</li>
       <li>Something lives in the dark. A strong beam pushes it back. A weak one won't.</li>
       <li>Plug your phone in and the light steadies... but it can hear the charger.</li>
-      <li><b>Zombies</b> shamble through the depot. They're slow, but they're drawn to your light. Light won't scare them, so hide or outrun them.</li>
+      <li><b>Original:</b> just you, the dark, and the Dimmer.</li>
+      <li><b>Zombies:</b> zombies shamble through the depot, drawn to your light. You have a gun. Shots are loud and bring more of them. New charging spots give you ammo.</li>
       <li>Hide (cover the light) and stay still to make things lose you.</li>
       <li>Green plugs are checkpoints. With the in-game battery, stand on one to charge.</li>
     </ul>
     <ul class="help">
-      <li><b>Keyboard:</b> <span class="k">WASD</span>/<span class="k">arrows</span> move, mouse aims, <span class="k">Space</span> hide, <span class="k">F</span> light on/off, <span class="k">P</span> pause, <span class="k">M</span> mute.</li>
-      <li><b>Touch:</b> drag the left side to move, drag the right side to aim, HIDE and LIGHT buttons.</li>
+      <li><b>Keyboard:</b> <span class="k">WASD</span>/<span class="k">arrows</span> move, mouse aims, <span class="k">Space</span> hide, click or <span class="k">E</span> shoot (Zombies), <span class="k">F</span> light on/off, <span class="k">P</span> pause, <span class="k">M</span> mute.</li>
+      <li><b>Touch:</b> drag the left side to move, drag the right side to aim, HIDE, LIGHT and SHOOT buttons.</li>
     </ul>
     <button class="b" id="helpBack">Back</button>
   </div>
