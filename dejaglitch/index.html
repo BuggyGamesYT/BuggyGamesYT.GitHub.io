@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#020805" />
+<title>Déjà Glitch · Buggy Games YT</title>
+<meta name="description" content="Trapped in a looping simulation. Spot the glitch, turn back. Dodge the Agents in slow-mo. A game by Buggy Games YT." />
+<link rel="icon" href="icon.png" />
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #020805; color: #c8ffd8; overflow: hidden;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Roboto Mono", monospace; user-select: none; -webkit-user-select: none; touch-action: none; }
+  #wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  canvas { display: block; image-rendering: pixelated; background: #000; }
+  .panel { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,8,3,.78); z-index: 10; padding: 16px; }
+  .panel.show { display: flex; }
+  .box { max-width: 560px; width: 100%; max-height: 92vh; overflow: auto; background: rgba(2,14,6,.94); border: 1px solid #1f7a3f; box-shadow: 0 0 30px rgba(40,255,120,.18); padding: 22px; border-radius: 10px; }
+  h1 { margin: 0 0 4px; font-size: 40px; letter-spacing: 2px; color: #eafff0; text-shadow: -2px 0 #ff2a6d, 2px 0 #21f0ff, 0 0 18px rgba(60,255,140,.6); }
+  h2 { margin: 0 0 12px; color: #7dffaa; font-size: 20px; }
+  p, li { line-height: 1.5; font-size: 14px; color: #b6f5c8; }
+  ul { padding-left: 20px; margin: 8px 0; }
+  .sub { color: #5fd88a; margin: 0 0 18px; font-size: 13px; }
+  .btns { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+  button.b, a.b { font: inherit; font-size: 15px; color: #021; background: #3dff86; border: 0; padding: 11px 18px; border-radius: 8px; cursor: pointer; text-decoration: none; font-weight: 700; }
+  button.b.alt, a.b.alt { background: transparent; color: #7dffaa; border: 1px solid #2d9c55; font-weight: 400; }
+  button.b:active { transform: scale(.97); }
+  .kbd { display: inline-block; border: 1px solid #2d9c55; border-radius: 4px; padding: 0 5px; font-size: 12px; color: #dfffe8; }
+  .stat { font-size: 15px; color: #dfffe8; }
+  #touch { position: fixed; inset: 0; pointer-events: none; z-index: 5; display: none; }
+  #touch.on { display: block; }
+  #touch .grp { position: absolute; bottom: max(14px, env(safe-area-inset-bottom)); display: flex; gap: 14px; pointer-events: auto; }
+  #touch .l { left: max(16px, env(safe-area-inset-left)); }
+  #touch .r { right: max(16px, env(safe-area-inset-right)); }
+  #touch button { width: 78px; height: 78px; border-radius: 50%; border: 2px solid rgba(80,255,150,.55); background: rgba(10,40,20,.45); color: #bfffd4; font: inherit; font-size: 22px; font-weight: 700; touch-action: none; }
+  #touch button.on { background: rgba(60,255,140,.45); color: #031; }
+  #touch button.slow { font-size: 14px; }
+  #pauseBtn { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); z-index: 6; display: none; width: 44px; height: 44px; border-radius: 8px; border: 1px solid #2d9c55; background: rgba(2,14,6,.7); color: #9fffc0; font: inherit; font-size: 18px; }
+  #pauseBtn.on { display: block; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="game"></canvas></div>
+
+<div id="touch">
+  <div class="grp l"><button data-k="left" aria-label="Left">◀</button><button data-k="right" aria-label="Right">▶</button></div>
+  <div class="grp r"><button data-k="jump" aria-label="Jump">▲</button><button data-k="slow" class="slow" aria-label="Slow-mo">SLOW</button></div>
+</div>
+<button id="pauseBtn" aria-label="Pause">II</button>
+
+<div class="panel show" id="title">
+  <div class="box">
+    <h1>DÉJÀ GLITCH</h1>
+    <p class="sub">You're stuck in a looping simulation. Glitches are the only way out.</p>
+    <p id="bestLine" class="stat"></p>
+    <div class="btns">
+      <button class="b" id="playBtn">▶ Play</button>
+      <button class="b alt" data-open="how">How to play</button>
+      <button class="b alt" data-open="about">Game notes</button>
+      <a class="b alt" id="homeLink" href="/">← Buggy Games YT</a>
+    </div>
+  </div>
+</div>
+
+<div class="panel" id="how">
+  <div class="box">
+    <h2>How to play</h2>
+    <ul>
+      <li>You walk the same street over and over. Memorize it.</li>
+      <li><b>See a glitch?</b> Turn around and walk back out the way you came.</li>
+      <li><b>Nothing off?</b> Keep going out the far door.</li>
+      <li>Right call: the loop counter goes up. Wrong call: it resets to 0.</li>
+      <li>Fill each sector's counter to break through. Six sectors to escape.</li>
+      <li>Every glitch you use gets <b>patched</b> by the Agents, so it never comes back. You'll have to spot new ones.</li>
+      <li>Agents aren't glitches. They're the patch. Jump over them, and use slow-mo to time it. Three hits and the sector resets.</li>
+    </ul>
+    <p><span class="kbd">← →</span> / <span class="kbd">A D</span> walk &nbsp; <span class="kbd">↑</span> / <span class="kbd">W</span> jump &nbsp; hold <span class="kbd">Space</span> / <span class="kbd">Shift</span> slow-mo &nbsp; <span class="kbd">P</span> pause &nbsp; <span class="kbd">M</span> mute</p>
+    <p>On a phone: ◀ ▶ to walk, ▲ to jump, hold SLOW for slow-mo.</p>
+    <div class="btns"><button class="b" data-close>Got it</button></div>
+  </div>
+</div>
+
+<div class="panel" id="about">
+  <div class="box">
+    <h2>Game notes</h2>
+    <p>Déjà Glitch is a game by Buggy Games YT, the channel all about video game bugs and glitches. This time the glitches are the point.</p>
+    <p>It's inspired by two favorites: <b>The Matrix</b>, for the idea of a simulated world with green falling code, déjà vu that means something changed, slow-mo dodging, and Agents that patch the holes; and <b>The Exit 8</b>, the game and the movie, for the loop of walking the same hallway and spotting what's off before you're allowed to leave.</p>
+    <p>All characters, art, names, and sounds here are original. Déjà Glitch isn't affiliated with or endorsed by the makers of The Matrix or The Exit 8.</p>
+    <p>Fourteen glitches are hiding in the loop. Can you find them all?</p>
+    <p style="color:#5fd88a">© 2026 Buggy Games YT</p>
+    <div class="btns"><button class="b" data-close>Back</button></div>
+  </div>
+</div>
+
+<div class="panel" id="pause">
+  <div class="box">
+    <h2>Paused</h2>
+    <div class="btns">
+      <button class="b" id="resumeBtn">Resume</button>
+      <button class="b alt" data-open="how">How to play</button>
+      <button class="b alt" id="muteBtn">Sound: on</button>
+      <button class="b alt" id="quitBtn">Quit to title</button>
+    </div>
+  </div>
+</div>
+
+<div class="panel" id="end">
+  <div class="box">
+    <h2 id="endTitle">You glitched out.</h2>
+    <p id="endText" class="stat"></p>
+    <div class="btns"><button class="b" id="againBtn">Play again</button><button class="b alt" id="endTitleBtn">Title</button></div>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
