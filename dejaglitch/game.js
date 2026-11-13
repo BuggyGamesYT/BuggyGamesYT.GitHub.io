@@ -53,6 +53,11 @@
   // ---------- save ----------
   let best = { sector: 0, wins: 0, time: 0, found: [] };
   try { best = Object.assign(best, JSON.parse(localStorage.getItem('dejaglitch-best') || '{}')); } catch (e) {}
+  const AGD = [{ n: 'Normal', sp: 1, mx: 3, cd: 1, bv: 1 }, { n: 'Easy', sp: .75, mx: 2, cd: 1.6, bv: .8 }, { n: 'Chill', sp: .55, mx: 1, cd: 2.2, bv: .65 }];
+  let opts = { agent: 0, shoot: true };
+  try { opts = Object.assign(opts, JSON.parse(localStorage.getItem('dejaglitch-opts') || '{}')); } catch (e) {}
+  function saveOpts() { try { localStorage.setItem('dejaglitch-opts', JSON.stringify(opts)); } catch (e) {} }
+  const AG = () => AGD[opts.agent] || AGD[0];
   function save() { try { localStorage.setItem('dejaglitch-best', JSON.stringify(best)); } catch (e) {} }
   function bestLine() {
     const f = (best.found || []).length;
@@ -165,7 +170,7 @@
     cat = { x: 1050, st: 'wait', a: 1, t: 0, phase: 0 };
     agents = []; bullets = []; rings = [];
     if (G.sector >= 1) {
-      const maxN = Math.min(3, 1 + Math.floor(G.sector / 2));
+      const maxN = Math.min(AG().mx, 1 + Math.floor(G.sector / 2));
       const n = 1 + Math.floor(Math.random() * maxN);
       for (let i = 0; i < n; i++) agents.push({ x: 850 + i * 560 + rnd(0, 220), st: 'idle', phase: 0, face: -1, rez: 0, cool: rnd(1, 2.5) });
     }
@@ -303,6 +308,10 @@
   $('playBtn').onclick = () => startGame();
   $('againBtn').onclick = () => startGame(G.diff);
   $('bluePill').onclick = () => startGame('blue');
+  function optLabels() { $('agentOpt').textContent = 'Agents: ' + AG().n; $('shootOpt').textContent = 'Agents shoot: ' + (opts.shoot ? 'On' : 'Off'); }
+  $('agentOpt').onclick = () => { opts.agent = (opts.agent + 1) % AGD.length; saveOpts(); optLabels(); };
+  $('shootOpt').onclick = () => { opts.shoot = !opts.shoot; saveOpts(); optLabels(); };
+  optLabels();
   $('redPill').onclick = () => startGame('red');
   $('endTitleBtn').onclick = toTitle;
   $('quitBtn').onclick = toTitle;
@@ -402,8 +411,8 @@
     else if (cat.st === 'gone' && seg.anomaly === 'cat') { cat.t += wdt; if (cat.t > .7) { cat.st = 'walk'; cat.x = 1050; cat.a = 1; } }
 
     // agents
-    const spd = 110 + G.sector * 14;
-    const shoots = G.sector >= 2;
+    const spd = (110 + G.sector * 14) * AG().sp;
+    const shoots = opts.shoot && G.sector >= 2;
     for (const a of agents) {
       const dx = P.x - a.x;
       if (a.st === 'idle' && Math.abs(dx) < 520) { a.st = 'chase'; a.rez = .5; sfx.glitch(); }
@@ -414,8 +423,8 @@
         if (a.rez > 0) a.rez -= dt;
         a.cool -= wdt;
         if (shoots && a.cool <= 0 && Math.abs(dx) < 460 && Math.abs(dx) > 60) {
-          a.cool = rnd(1.7, 3.2) - G.sector * .1;
-          bullets.push({ x: a.x + a.face * 16, h: 52, vx: a.face * 520, trail: [] }); sfx.shot();
+          a.cool = (rnd(1.7, 3.2) - G.sector * .1) * AG().cd;
+          bullets.push({ x: a.x + a.face * 16, h: 52, vx: a.face * 520 * AG().bv, trail: [] }); sfx.shot();
         }
         if (P.inv <= 0 && Math.abs(dx) < 26 && P.y < 74) { caught(); return; }
       }
