@@ -183,7 +183,7 @@
 
   function startGame(diff) {
     if (diff !== 'blue' && diff !== 'red') { showPanel('pills'); return; }
-    G.diff = diff;
+    G.diff = diff; setSlowLabel('SLOW');
     ac(); startHum();
     Object.assign(G, { trace: 0, maxTrace: 0, hardline: false, lineT: 0, said: {}, sight: 2, sightT: 0 });
     Object.assign(G, { mode: 'play', sector: 0, streak: 0, integrity: maxHP(), anomaly: null, last: null, slow: 100, time: 0, caught: 0, mistakes: 0, found: 0, flash: .6, firstLoop: true });
@@ -306,24 +306,29 @@
     if (G.mode === 'play') { pause(); return 1; }
     if (p && (p.id === 'how' || p.id === 'about')) { showPanel(returnTo); return 1; }
     if (p && p.id === 'pills') { showPanel('title'); return 1; }
+    if (p && p.id === 'redModes') { showPanel('pills'); return 1; }
     if (G.mode === 'paused') { resume(); return 1; }
     if (G.mode === 'end') { toTitle(); return 1; }
     return 0;
   };
   $('playBtn').onclick = () => startGame();
-  $('againBtn').onclick = () => startGame(G.diff);
+  $('againBtn').onclick = () => G.diff === 'story' ? storyStart(1) : startGame(G.diff);
   $('bluePill').onclick = () => startGame('blue');
   function optLabels() { $('agentOpt').textContent = 'Agents: ' + AG().n; $('shootOpt').textContent = 'Agents shoot: ' + (opts.shoot ? 'On' : 'Off'); }
   $('agentOpt').onclick = () => { opts.agent = (opts.agent + 1) % AGD.length; saveOpts(); optLabels(); };
   $('shootOpt').onclick = () => { opts.shoot = !opts.shoot; saveOpts(); optLabels(); };
   optLabels();
-  $('redPill').onclick = () => startGame('red');
+  $('redPill').onclick = () => { const c = best.storyCh || 0; $('storyCont').style.display = c > 1 ? '' : 'none'; $('storyCont').textContent = 'Continue: ' + (CH_NAMES[c] || ''); showPanel('redModes'); };
+  $('storyBtn').onclick = () => storyStart(1);
+  if (location.hash === '#dev') window.__dg = { storyStart, S: () => S, P: () => P, G };
+  $('storyCont').onclick = () => storyStart(best.storyCh || 1);
+  $('traceBtn').onclick = () => startGame('red');
   $('endTitleBtn').onclick = toTitle;
   $('quitBtn').onclick = toTitle;
   $('resumeBtn').onclick = resume;
   $('pauseBtn').onclick = () => { if (G.mode === 'play') pause(); };
   $('muteBtn').onclick = toggleMute;
-  function toTitle() { G.mode = 'title'; stopHum(); bestLine(); showPanel('title'); $('touch').classList.remove('on'); $('pauseBtn').classList.remove('on'); }
+  function toTitle() { setSlowLabel('SLOW'); G.mode = 'title'; stopHum(); bestLine(); showPanel('title'); $('touch').classList.remove('on'); $('pauseBtn').classList.remove('on'); }
   function pause() { if (G.mode !== 'play') return; G.mode = 'paused'; for (const k in keys) keys[k] = false; showPanel('pause'); }
   function resume() { if (G.mode !== 'paused') return; hidePanels(); G.mode = 'play'; last = performance.now(); }
   function toggleMute() {
@@ -742,6 +747,11 @@
     ctx.fillStyle = G.slowOn ? '#d8ffe4' : '#3dff86'; ctx.fillRect(220, 42, 80 * G.slow / 100, 8);
     ctx.fillStyle = '#5fd88a'; ctx.fillText(`PATCHED ${G.patched.size}`, 20, 66);
     if (TRACE()) { ctx.fillText('CODE SIGHT', 160, 66); for (let i = 0; i < 3; i++) { ctx.fillStyle = i < G.sight ? '#d8ffe4' : '#123d22'; ctx.fillRect(240 + i * 16, 58, 10, 8); } }
+    drawToast();
+    // direction hints at the ends
+    if (P.maxX >= 700 && P.x < 400) { ctx.fillStyle = 'rgba(255,176,0,.8)'; ctx.font = 'bold 13px monospace'; ctx.fillText('◀ turn back = "I saw a glitch"', 20, 92); }
+  }
+  function drawToast() {
     if (G.toastT > 0) {
       const a = Math.min(1, G.toastT * 2);
       ctx.globalAlpha = a; ctx.textAlign = 'center';
@@ -750,8 +760,6 @@
       if (G.toast2) { ctx.fillStyle = '#9fe8b8'; ctx.font = '13px monospace'; ctx.fillText(G.toast2, W / 2, 165); }
       ctx.textAlign = 'left'; ctx.globalAlpha = 1;
     }
-    // direction hints at the ends
-    if (P.maxX >= 700 && P.x < 400) { ctx.fillStyle = 'rgba(255,176,0,.8)'; ctx.font = 'bold 13px monospace'; ctx.fillText('◀ turn back = "I saw a glitch"', 20, 92); }
   }
 
   function anomalyX() {
@@ -807,16 +815,377 @@
     });
   }
 
+  // ---------- red pill: THE ENDING (3 chapters) ----------
+  const CH_NAMES = ['', 'Chapter 1 · Two Worlds', 'Chapter 2 · Awakening', 'Chapter 3 · Final Call'];
+  let S = null;
+  const STORY = () => G.diff === 'story';
+  function storyStart(ch) {
+    G.diff = 'story'; ac(); startHum();
+    Object.assign(G, { mode: 'play', slow: 100, slowOn: false, time: G.time && ch > 1 ? G.time : 0, caught: 0, flash: .8, shake: 0, hurtT: 0 });
+    if (ch === 1) G.time = 0;
+    S = { ch, t: 0, cut: 0, cam: 0, bullets: [], agents: [], fx: [], woken: 0, done: false };
+    P = { x: 120, y: 0, vy: 0, jumps: 0, face: 1, phase: 0, inv: 0, maxX: 120, hist: [] };
+    const d = opts.agent;
+    if (ch === 1) {
+      S.len = 3300; S.hull = S.hullMax = [70, 95, 130][d]; S.hp = 3;
+      const doors = [[650, 1150, 1650, 2150, 2650], [800, 1600, 2400], [1000, 2200]][d];
+      S.agents = doors.map(x => ({ x, door: x, st: 'hid', hp: 1, face: -1, phase: 0, cool: rnd(1, 2), rez: 0 }));
+      toast(CH_NAMES[1], 'Reach the phone at the end of the hall before the machines break into the ship.', 4.5);
+    } else if (ch === 2) {
+      S.hp = 4; S.cut = 4; P.x = 220; P.down = true;
+      const n = [3, 2, 1][d];
+      for (let i = 0; i < n; i++) S.agents.push({ x: 640 + i * 110, st: 'idle', hp: 2, face: -1, phase: 0, cool: 1.5 + i * .7, wind: 0, stag: 0 });
+      toast('...', '', 1);
+    } else {
+      S.hp = 3; S.cut = 7; S.fly = false; P.x = 360; P.alt = 0; S.dist = 0; S.goalT = 60; S.need = [12, 10, 8][d];
+      S.orbs = []; S.sigs = []; S.spawnO = .5; S.spawnS = 1.5;
+    }
+    hidePanels();
+    if (isTouch) $('touch').classList.add('on');
+    $('pauseBtn').classList.add('on'); $('touch').classList.remove('red');
+    setSlowLabel(ch === 2 ? 'STOP' : 'SLOW');
+    if (ch > (best.storyCh || 0)) { best.storyCh = ch; save(); }
+    sfx.glitch();
+  }
+  function setSlowLabel(t) { const b = document.querySelector('#touch [data-k="slow"]'); if (b) b.textContent = t; }
+  function storyHit() {
+    if (P.inv > 0) return;
+    S.hp--; G.caught++; G.shake = .5; G.hurtT = .5; P.inv = 1.3; sfx.hit(); G.flash = .4;
+    if (S.hp <= 0) { toast('CONNECTION LOST', 'Retrying the chapter...', 2.2); S.retry = 2; }
+  }
+  function storyNext() {
+    if (S.ch < 3) { const t = G.time; storyStart(S.ch + 1); G.time = t; return; }
+    best.storyWins = (best.storyWins || 0) + 1;
+    if (!best.storyTime || G.time < best.storyTime) best.storyTime = G.time;
+    save(); setSlowLabel('SLOW'); sfx.sector();
+    endScreen('You\'re out of the loop.', `You made the call, broke the Agents, and flew out over the code.<br>People woken on the way: ${S.woken}<br>Total time ${fmt(G.time)} · best ${fmt(best.storyTime)}<br>Hits taken: ${G.caught}`);
+  }
+
+  function storyUpdate(dt) {
+    G.time += dt; S.t += dt;
+    if (S.retry) { S.retry -= dt; if (S.retry <= 0) { const t = G.time; storyStart(S.ch); G.time = t; } return; }
+    const meterRate = S.ch === 2 ? 22 : 35;
+    const want = keys.slow && G.slow > 2;
+    if (want && !G.slowOn) sfx.slow();
+    G.slowOn = want;
+    G.slow = clamp(G.slow + (want ? -meterRate : 14) * dt, 0, 100);
+    const wdt = dt * (G.slowOn ? .3 : 1);
+    if (P.inv > 0) P.inv -= dt;
+    if (S.ch === 1) ch1(dt, wdt); else if (S.ch === 2) ch2(dt, wdt); else ch3(dt, wdt);
+    jumpPressed = false; sightPressed = false;
+  }
+  function walkPlayer(dt, minX, maxX) {
+    const mv = (keys.right ? 1 : 0) - (keys.left ? 1 : 0), run = keys.run ? 1.8 : 1;
+    P.x = clamp(P.x + mv * SPEED * run * dt, minX, maxX); if (mv) { P.face = mv; P.phase += dt * 12 * run; }
+    if (jumpPressed) {
+      if (P.y === 0 && P.vy === 0) { P.vy = 640; P.jumps = 1; sfx.jump(); }
+      else if (P.jumps < 3) { P.jumps++; P.vy = P.jumps === 2 ? 580 : 540; sfx.jump(); }
+    }
+    if (P.y > 0 || P.vy > 0) { P.y += P.vy * dt; P.vy -= 1500 * dt; if (P.y <= 0) { P.y = 0; P.vy = 0; P.jumps = 0; } }
+  }
+  function moveBullets(wdt, hitPlayer) {
+    for (let i = S.bullets.length - 1; i >= 0; i--) {
+      const b = S.bullets[i];
+      if (b.frozen) continue;
+      b.trail = b.trail || []; b.trail.push(b.x); if (b.trail.length > 14) b.trail.shift();
+      b.x += b.vx * wdt;
+      if (b.back) {
+        for (const a of S.agents) if (a.st !== 'gone' && a.st !== 'dazed' && Math.abs(b.x - a.x) < 18) { agentHurt(a, Math.sign(b.vx)); b.dead = true; break; }
+      } else if (hitPlayer && P.inv <= 0 && Math.abs(b.x - P.x) < 12 && P.y < b.h + 4 && P.y + 85 > b.h) { b.dead = true; storyHit(); }
+      if (b.dead || b.x < S.cam - 150 || b.x > S.cam + W + 150) S.bullets.splice(i, 1);
+    }
+  }
+  function agentShoot(a) {
+    a.face = Math.sign(P.x - a.x) || -1;
+    S.bullets.push({ x: a.x + a.face * 16, h: 52, vx: a.face * 480 * AG().bv }); sfx.shot();
+  }
+
+  // Chapter 1: run the hall while the ship is breached
+  function ch1(dt, wdt) {
+    if (S.cut > 0) {
+      S.cut -= dt; S.shotA && (S.shotA.phase += dt * 6);
+      if (S.cut <= 0) storyNext();
+      return;
+    }
+    walkPlayer(dt, 60, S.len);
+    S.hull -= dt;
+    if (S.hull <= 0) { toast('THE SHIP IS BREACHED', 'Too slow. Retrying the chapter...', 2.4); S.retry = 2.2; sfx.bad(); return; }
+    if (S.hull < 20 && Math.floor(S.hull) !== S.lastBeep) { S.lastBeep = Math.floor(S.hull); tone(880, .1, 'square', .03); }
+    const spd = (120) * AG().sp;
+    for (const a of S.agents) {
+      if (a.st === 'hid' && Math.abs(P.x - a.x) < 520) { a.st = 'out'; a.rez = 0; sfx.glitch(); }
+      if (a.st === 'out') {
+        a.rez = Math.min(1, a.rez + dt * 2); a.cool -= wdt;
+        const dx = P.x - a.x; a.face = Math.sign(dx) || -1;
+        if (Math.abs(dx) > 40) { a.x += Math.sign(dx) * spd * wdt; a.phase += wdt * 8; }
+        if (opts.shoot && a.cool <= 0 && Math.abs(dx) < 480 && Math.abs(dx) > 70) { a.cool = rnd(1.8, 3) * AG().cd; agentShoot(a); }
+        if (P.inv <= 0 && Math.abs(dx) < 22 && P.y < 45) storyHit();
+      }
+    }
+    moveBullets(wdt, true);
+    S.cam += (clamp(P.x - W * .42, 0, S.len + 200 - W) - S.cam) * Math.min(1, dt * 8);
+    if (P.x >= S.len - 120) {
+      // the scripted ambush at the phone room door
+      S.cut = 3.2; S.bullets = []; S.agents.forEach(a => a.st = 'hid');
+      S.shotA = { x: S.len + 40, phase: 0 };
+      G.flash = 1; G.shake = .8; sfx.hit(); noise(.5, .1);
+      toast('YOU WERE SHOT.', 'The door was a trap. Everything goes dark...', 3.2);
+    }
+  }
+
+  // Chapter 2: wake up, stop the bullets, break the Agents
+  function agentHurt(a, dir) {
+    a.hp--; a.stag = .6; a.x += dir * 60; G.shake = .25; tone(200, .2, 'sawtooth', .05, -120);
+    if (a.hp <= 0) { a.st = 'dazed'; toast('AGENT DAZED', 'Run into him to break him from the inside.', 2.2); }
+  }
+  function ch2(dt, wdt) {
+    if (S.cut > 0) {
+      S.cut -= dt;
+      if (S.cut < 3.2 && !S.said1) { S.said1 = 1; toast('OPERATOR', 'Your heart just started again. Get up. You can see it now.', 3); }
+      if (S.cut <= 0) { P.down = false; S.code = true; G.flash = 1; sfx.sector(); toast('YOU CAN SEE THE CODE', opts.shoot ? 'Hold STOP to freeze bullets, let go to send them back.' : 'Hold STOP when an Agent swings to counter him.', 4); }
+      return;
+    }
+    walkPlayer(dt, 40, W - 40);
+    const holding = G.slowOn;
+    // freeze bullets in front of you while holding, send them back on release
+    for (const b of S.bullets) {
+      if (!b.back && holding && Math.abs(b.x - P.x) < 150 && !b.frozen) { b.frozen = true; b.fy = rnd(-14, 14); tone(1500, .05, 'sine', .02); }
+      if (b.frozen && !holding) { b.frozen = false; b.back = true; b.vx = -b.vx * 1.3; }
+    }
+    let alive = 0;
+    for (const a of S.agents) {
+      if (a.st === 'gone') continue;
+      alive++;
+      if (a.st === 'burst') { a.t += dt; if (a.t > 1.1) { a.st = 'gone'; P.hidden = false; G.flash = .8; } continue; }
+      if (a.st === 'dazed') {
+        if (Math.abs(P.x - a.x) < 30) { a.st = 'burst'; a.t = 0; P.hidden = true; P.x = a.x; G.shake = 1; noise(.9, .12); [200, 400, 800, 1600].forEach((f, i) => tone(f, .3, 'square', .04, 0, i * .08)); }
+        continue;
+      }
+      a.stag = Math.max(0, a.stag - wdt); a.cool -= wdt;
+      const dx = P.x - a.x; a.face = Math.sign(dx) || -1;
+      if (a.stag > 0) continue;
+      if (opts.shoot) {
+        const want = 330 + (a.x % 60);
+        if (Math.abs(dx) < want - 30) { a.x -= Math.sign(dx) * 90 * AG().sp * wdt; a.phase += wdt * 8; }
+        else if (Math.abs(dx) > want + 60) { a.x += Math.sign(dx) * 90 * AG().sp * wdt; a.phase += wdt * 8; }
+        a.x = clamp(a.x, 30, W - 30);
+        if (a.cool <= 0) { a.cool = rnd(1.4, 2.4) * AG().cd; agentShoot(a); }
+      } else {
+        if (a.wind > 0) {
+          a.wind -= wdt;
+          if (a.wind <= 0) {
+            if (Math.abs(dx) < 75) { if (holding) agentHurt(a, -Math.sign(dx)); else storyHit(); }
+            a.cool = rnd(1, 1.8) * AG().cd;
+          }
+        } else if (Math.abs(dx) > 55) { a.x += Math.sign(dx) * 130 * AG().sp * wdt; a.phase += wdt * 8; }
+        else if (a.cool <= 0) a.wind = .55;
+      }
+      if (P.inv <= 0 && Math.abs(dx) < 20 && P.y < 40 && a.wind <= 0) storyHit();
+    }
+    moveBullets(wdt, true);
+    if (!alive && !S.won) { S.won = true; S.cut2 = 2.5; toast('THEY RAN.', 'One last thing to do.', 2.5); }
+    if (S.cut2) { S.cut2 -= dt; if (S.cut2 <= 0) storyNext(); }
+  }
+
+  // Chapter 3: the last call, then fly
+  function ch3(dt, wdt) {
+    if (!S.fly) {
+      S.cut -= dt;
+      P.x = Math.min(480, P.x + 60 * dt); P.phase += dt * 5;
+      if (S.cut < 5.6 && !S.l1) { S.l1 = 1; P.phone = true; toast('THE CALL', 'I know you\'re listening. I\'m not scared of you anymore.', 2.6); sfx.ring(); }
+      if (S.cut < 3 && !S.l2) { S.l2 = 1; toast('THE CALL', 'I\'m going to show everyone what\'s outside the loop.', 2.8); }
+      if (S.cut <= 0) { S.fly = true; P.phone = false; P.x = 300; P.alt = 380; S.t = 0; G.flash = .8; tone(300, .6, 'sine', .05, 600); toast('FLY', 'Hold ▲ to rise. Fly through the green lights to wake people. Dodge red signals.', 4.5); }
+      return;
+    }
+    S.dist += dt;
+    const mv = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+    const spd = 280 * (1 + mv * .4);
+    P.alt = clamp(P.alt + (keys.jump ? -300 : 170) * dt, 40, 440);
+    P.x = clamp(P.x + mv * 120 * dt, 160, 520);
+    S.scroll = (S.scroll || 0) + spd * wdt;
+    S.spawnO -= wdt; S.spawnS -= wdt;
+    if (S.dist < S.goalT - 3) {
+      if (S.spawnO <= 0) { S.spawnO = rnd(.9, 1.5); S.orbs.push({ x: W + 40, y: rnd(60, 400) }); }
+      if (S.spawnS <= 0) { S.spawnS = rnd(1.1, 1.8) / [1, .75, .55][opts.agent]; S.sigs.push({ x: W + 40, y: rnd(40, 420), ph: rnd(0, 6), r: rnd(18, 30) }); }
+    }
+    for (let i = S.orbs.length - 1; i >= 0; i--) {
+      const o = S.orbs[i]; o.x -= spd * wdt;
+      if (Math.hypot(o.x - P.x, o.y - P.alt) < 34) { S.woken++; S.orbs.splice(i, 1); tone(880, .1, 'triangle', .04); tone(1320, .14, 'triangle', .04, 0, .08); continue; }
+      if (o.x < -40) S.orbs.splice(i, 1);
+    }
+    for (let i = S.sigs.length - 1; i >= 0; i--) {
+      const s = S.sigs[i]; s.x -= spd * wdt * 1.1; s.ph += wdt * 3; s.y += Math.sin(s.ph) * 40 * wdt;
+      if (P.inv <= 0 && Math.hypot(s.x - P.x, s.y - P.alt) < s.r + 12) { storyHit(); S.sigs.splice(i, 1); continue; }
+      if (s.x < -60) S.sigs.splice(i, 1);
+    }
+    if (S.dist >= S.goalT) storyNext();
+  }
+
+  // ---------- story drawing ----------
+  function agentLook(a) { return { coat: '#22252b', pants: '#1b1d22', skin: '#e1b894', hair: '#1c1c1c', shades: '#000', tie: true, ear: true, face: a.face, phase: a.phase }; }
+  const HERO = { coat: '#111', pants: '#111', skin: '#e1b894', hair: '#141414', shades: '#3dff86', long: true };
+  function storyDraw() {
+    if (S.ch === 3) return drawCh3();
+    const code = S.ch === 2 && S.code;
+    ctx.save();
+    if (G.shake > 0) ctx.translate(rnd(-6, 6) * G.shake, rnd(-6, 6) * G.shake);
+    ctx.fillStyle = code ? '#010a04' : '#2a1414'; ctx.fillRect(0, 0, W, H);
+    ctx.save(); ctx.translate(-Math.round(S.cam), 0);
+    const x0 = Math.floor(S.cam / 100) * 100, len = S.ch === 1 ? S.len + 300 : W;
+    if (code) {
+      ctx.font = '13px monospace';
+      for (let x = 0; x < W; x += 15) for (let y = (G.time * 70 + x * 3) % 22 - 22; y < FLOOR; y += 22) { ctx.fillStyle = `rgba(61,255,134,${.12 + ((x * 7 + y) % 5) * .05})`; ctx.fillText(CODE_CH[(x + Math.floor(y) + Math.floor(G.time * 6)) % CODE_CH.length], x, y); }
+      ctx.strokeStyle = '#3dff86'; ctx.lineWidth = 2; ctx.strokeRect(0, 70, W, FLOOR - 70);
+      ctx.beginPath(); ctx.moveTo(0, FLOOR); ctx.lineTo(W, FLOOR); ctx.stroke();
+      for (let x = 60; x < W; x += 300) ctx.strokeRect(x, 230, 70, FLOOR - 230);
+    } else {
+      ctx.fillStyle = '#1b0f0f'; ctx.fillRect(S.cam, 0, W, 70);
+      ctx.fillStyle = '#8c4b44'; ctx.fillRect(S.cam, 70, W, FLOOR - 70);
+      ctx.fillStyle = '#6e3631'; ctx.fillRect(S.cam, 300, W, FLOOR - 300);
+      ctx.fillStyle = '#d9b36a'; ctx.fillRect(S.cam, 296, W, 4);
+      for (let x = x0; x < S.cam + W + 100; x += 100) { ctx.fillStyle = 'rgba(255,230,180,.08)'; ctx.fillRect(x + 20, 70, 40, FLOOR - 70); }
+      for (let x = 400; x < len; x += 500) { ctx.fillStyle = '#f6e7c8'; ctx.fillRect(x, 66, 60, 5); ctx.fillStyle = 'rgba(255,240,200,.07)'; ctx.beginPath(); ctx.moveTo(x, 70); ctx.lineTo(x + 60, 70); ctx.lineTo(x + 120, FLOOR); ctx.lineTo(x - 60, FLOOR); ctx.fill(); }
+      if (S.ch === 1) {
+        S.agents.forEach(a => { ctx.fillStyle = a.st === 'hid' ? '#4a2a1c' : '#140b08'; ctx.fillRect(a.door - 34, 230, 68, FLOOR - 230); ctx.fillStyle = '#d9b36a'; ctx.fillRect(a.door + 22, 330, 6, 6); });
+        const ex = S.len + 40;
+        ctx.fillStyle = S.cut > 0 ? '#140b08' : '#4a2a1c'; ctx.fillRect(ex - 36, 230, 72, FLOOR - 230);
+        ctx.fillStyle = '#f6e7c8'; ctx.fillRect(ex - 18, 246, 36, 16); ctx.fillStyle = '#3a1a14'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center'; ctx.fillText('303', ex, 258); ctx.textAlign = 'left';
+        if (Math.floor(G.time * 1.2) % 2 === 0 && S.cut <= 0) { ctx.fillStyle = '#ffd36b'; ctx.font = 'bold 13px monospace'; ctx.fillText('☎ ring', ex - 24, 220); }
+      }
+      ctx.fillStyle = '#3d2420'; ctx.fillRect(S.cam, FLOOR, W, H - FLOOR);
+    }
+    // agents
+    for (const a of S.agents) {
+      if (a.st === 'hid' || a.st === 'gone') continue;
+      if (a.st === 'burst') {
+        const k = a.t / 1.1;
+        ctx.save(); ctx.translate(a.x, FY - 42); ctx.scale(1 + k * .8, 1 + k * .8);
+        ctx.fillStyle = `rgba(230,255,240,${1 - k})`; ctx.fillRect(-14, -42, 28, 84); ctx.restore();
+        for (let i = 0; i < 18; i++) { const an = i / 18 * 6.28, r = k * 260; ctx.fillStyle = `rgba(61,255,134,${1 - k})`; ctx.fillText(CODE_CH[i % CODE_CH.length], a.x + Math.cos(an) * r, FY - 42 + Math.sin(an) * r); }
+        continue;
+      }
+      const o = agentLook(a);
+      if (code) Object.assign(o, { coat: '#0c3d1f', pants: '#0c3d1f', skin: '#3dff86', hair: '#0c3d1f', shades: '#d8ffe4' });
+      if (S.ch === 1) o.alpha = a.rez;
+      if (a.st === 'dazed') { ctx.save(); ctx.translate(a.x, FY); ctx.scale(1, .75); ctx.translate(-a.x, -FY); person(a.x, FY, o); ctx.restore(); ctx.strokeStyle = `rgba(230,255,240,${.5 + Math.sin(G.time * 10) * .4})`; ctx.lineWidth = 2; ctx.strokeRect(a.x - 18, FY - 70, 36, 70); }
+      else { shadow(a.x, 16); person(a.x + (a.stag > 0 ? rnd(-3, 3) : 0), FY, o); }
+      if (a.wind > 0) { ctx.fillStyle = '#ff4d6d'; ctx.font = 'bold 16px monospace'; ctx.fillText('!', a.x - 4, FY - 98); }
+    }
+    if (S.shotA) { const o = agentLook({ face: -1, phase: 0 }); person(S.shotA.x, FY, o); ctx.fillStyle = '#ffd36b'; if (S.cut > 2.8) ctx.fillRect(S.shotA.x - 30, FY - 54, 14, 4); }
+    // bullets
+    for (const b of S.bullets) {
+      const y = FY - b.h + (b.frozen ? b.fy + Math.sin(G.time * 5 + b.x) * 2 : 0);
+      if (b.trail && !b.frozen) b.trail.forEach((x, i) => { ctx.fillStyle = `rgba(255,220,120,${i / 30})`; ctx.fillRect(x - 2, y - 1, 4, 2); });
+      ctx.fillStyle = b.frozen ? '#eafff0' : b.back ? '#3dff86' : '#ffd36b'; ctx.fillRect(b.x - 4, y - 2, 8, 4);
+      if (b.frozen) { ctx.strokeStyle = 'rgba(200,255,220,.5)'; ctx.beginPath(); ctx.arc(b.x, y, 9 + Math.sin(G.time * 8) * 2, 0, 7); ctx.stroke(); }
+    }
+    // hero
+    if (!P.hidden) {
+      const ho = Object.assign({}, HERO, { face: P.face, phase: P.phase });
+      if (code) Object.assign(ho, { coat: '#d8ffe4', pants: '#d8ffe4', skin: '#eafff0', hair: '#d8ffe4', shades: '#3dff86' });
+      if (P.inv > 0 && Math.floor(P.inv * 12) % 2) ho.alpha = .4;
+      if (S.ch === 1 && S.cut > 0) { ctx.save(); ctx.translate(P.x, FY); ctx.rotate(-Math.min(1.5, (3.2 - S.cut) * 2)); ctx.translate(-P.x, -FY); person(P.x, FY, ho); ctx.restore(); }
+      else if (P.down) { ctx.save(); ctx.translate(P.x, FY); ctx.rotate(-1.5 + Math.max(0, 1 - S.cut) * 1.5); ctx.translate(-P.x, -FY); person(P.x, FY, ho); ctx.restore(); }
+      else { shadow(P.x, 16); person(P.x, FY - P.y, ho); }
+      if (S.ch === 2 && G.slowOn && !P.down) { ctx.fillStyle = 'rgba(200,255,220,.15)'; ctx.beginPath(); ctx.arc(P.x + P.face * 20, FY - 60 - P.y, 150, 0, 7); ctx.fill(); ctx.fillStyle = '#eafff0'; ctx.fillRect(P.x + P.face * 14 - 2, FY - 70 - P.y, 4, 14); }
+    }
+    ctx.restore();
+    if (G.slowOn && S.ch === 1) { ctx.fillStyle = 'rgba(160,255,200,.08)'; ctx.fillRect(0, 0, W, H); }
+    ctx.restore();
+    if (S.ch === 1) drawShip();
+    if ((S.ch === 1 && S.cut > 0) || (S.ch === 2 && S.cut > 1)) { ctx.fillStyle = `rgba(0,0,0,${S.ch === 1 ? clamp((3.2 - S.cut) / 2.4, 0, .92) : .9})`; ctx.fillRect(0, 0, W, H); if (S.ch === 2) { ctx.fillStyle = `rgba(61,255,134,${(4 - S.cut) / 3 * .6})`; ctx.font = 'bold 22px monospace'; ctx.textAlign = 'center'; ctx.fillText('♥ . . .  ♥ . .  ♥', W / 2, H / 2); ctx.textAlign = 'left'; } }
+    storyHUD();
+  }
+  function drawShip() {
+    const x = W - 250, y = 84, w = 232, h = 126, k = 1 - S.hull / S.hullMax;
+    ctx.fillStyle = 'rgba(0,0,0,.75)'; ctx.fillRect(x - 4, y - 4, w + 8, h + 30);
+    ctx.fillStyle = '#10161a'; ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#1d272d'; for (let i = 0; i < 6; i++) ctx.fillRect(x + 6 + i * 22, y + 8, 16, 26);
+    ctx.fillStyle = '#3dff86'; for (let i = 0; i < 4; i++) ctx.fillRect(x + 10 + i * 30, y + 46, 22, 14);
+    ctx.fillStyle = '#2a2a2a'; ctx.fillRect(x + 30, y + 70, 30, 40); ctx.fillRect(x + 26, y + 104, 40, 8);
+    ctx.fillStyle = '#e1b894'; ctx.fillRect(x + 38, y + 62, 12, 12);
+    // hull being cut
+    const cx = x + w - 40, cy = y + 60;
+    ctx.strokeStyle = '#555'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, 30, 0, 7); ctx.stroke();
+    ctx.strokeStyle = '#ff8a2a'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(cx, cy, 30, -1.57, -1.57 + k * 6.28); ctx.stroke();
+    for (let i = 0; i < 5; i++) { ctx.fillStyle = '#ffd36b'; const an = -1.57 + k * 6.28; ctx.fillRect(cx + Math.cos(an) * 30 + rnd(-8, 8), cy + Math.sin(an) * 30 + rnd(-8, 8), 2, 2); }
+    if (k > .7) { ctx.fillStyle = '#ff2a44'; for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.arc(cx + i * 9, cy, 3, 0, 7); ctx.fill(); } }
+    ctx.fillStyle = '#9fe8b8'; ctx.font = '11px monospace'; ctx.fillText('REAL WORLD · HULL', x, y + h + 16);
+    ctx.fillStyle = '#3a1a1a'; ctx.fillRect(x + 128, y + h + 7, 104, 10);
+    ctx.fillStyle = S.hull < 20 && Math.floor(G.time * 4) % 2 ? '#ffd36b' : '#ff4d6d'; ctx.fillRect(x + 128, y + h + 7, 104 * S.hull / S.hullMax, 10);
+  }
+  function drawCh3() {
+    const t = G.time, sc = S.scroll || 0;
+    const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#010804'); g.addColorStop(1, '#06200f');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    for (let layer = 0; layer < 2; layer++) {
+      const sp = layer ? .9 : .35, base = layer ? 0 : 90;
+      for (let i = -1; i < 12; i++) {
+        const bw = 90 + ((i * 37 + layer * 13) % 5) * 14;
+        const wx = ((i * 110 - sc * sp) % 1320 + 1320) % 1320 - 120;
+        const bh = 150 + ((Math.floor((i * 110 - sc * sp) / 1320) * 7 + i * 53 + layer * 29) % 7 + 7) % 7 * 40 - base;
+        ctx.fillStyle = layer ? '#020d06' : '#04160b'; ctx.fillRect(wx, H - bh, bw, bh);
+        ctx.fillStyle = layer ? 'rgba(61,255,134,.35)' : 'rgba(61,255,134,.15)';
+        for (let yy = H - bh + 12; yy < H - 10; yy += 18) for (let xx = wx + 8; xx < wx + bw - 10; xx += 16) if (((xx * 3 + yy) | 0) % 7 < 3) ctx.fillRect(xx, yy, 6, 8);
+      }
+    }
+    ctx.font = '12px monospace';
+    for (let c = 0; c < W / 24; c++) { ctx.fillStyle = 'rgba(61,255,134,.12)'; ctx.fillText(CODE_CH[(c * 5 + Math.floor(t * 8)) % CODE_CH.length], c * 24, (t * (50 + c * 7 % 60) + c * 47) % H); }
+    if (!S.fly) {
+      ctx.fillStyle = '#0a1a10'; ctx.fillRect(0, FLOOR, W, H - FLOOR);
+      // phone booth
+      ctx.strokeStyle = '#3dff86'; ctx.lineWidth = 3; ctx.strokeRect(470, 330, 70, FLOOR - 330);
+      ctx.fillStyle = 'rgba(61,255,134,.08)'; ctx.fillRect(470, 330, 70, FLOOR - 330);
+      ctx.fillStyle = '#9fe8b8'; ctx.font = 'bold 11px monospace'; ctx.fillText('PHONE', 482, 344);
+      const ho = Object.assign({}, HERO, { face: 1, phase: P.phase, phone: P.phone });
+      person(P.x, FY - 38, ho);
+      if (S.cut < 1) { ctx.fillStyle = `rgba(230,255,240,${1 - S.cut})`; ctx.fillRect(0, 0, W, H); }
+    } else {
+      for (const o of S.orbs) { ctx.fillStyle = 'rgba(61,255,134,.25)'; ctx.beginPath(); ctx.arc(o.x, o.y, 18 + Math.sin(t * 6 + o.x) * 3, 0, 7); ctx.fill(); ctx.fillStyle = '#d8ffe4'; ctx.beginPath(); ctx.arc(o.x, o.y, 7, 0, 7); ctx.fill(); }
+      for (const s of S.sigs) { ctx.strokeStyle = '#ff2a44'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(s.x, s.y, s.r + Math.sin(t * 9 + s.ph) * 3, 0, 7); ctx.stroke(); ctx.strokeStyle = 'rgba(255,42,68,.35)'; ctx.beginPath(); ctx.arc(s.x, s.y, s.r * .55, 0, 7); ctx.stroke(); }
+      // flying hero
+      const ho = Object.assign({}, HERO, { face: 1, phase: 0 });
+      if (P.inv > 0 && Math.floor(P.inv * 12) % 2) ho.alpha = .4;
+      ctx.save(); ctx.translate(P.x, P.alt); ctx.rotate(1.35);
+      ctx.strokeStyle = 'rgba(20,20,20,.9)'; ctx.lineWidth = 3; for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(-8 + i * 6, -20); ctx.lineTo(-8 + i * 6 + Math.sin(t * 20 + i) * 4, 14); ctx.stroke(); }
+      person(0, 40, ho); ctx.restore();
+      ctx.fillStyle = 'rgba(200,255,220,.25)'; for (let i = 0; i < 4; i++) ctx.fillRect(P.x - 60 - i * 30, P.alt - 20 + i * 8 + Math.sin(t * 10 + i) * 3, 40 - i * 6, 2);
+    }
+    storyHUD();
+  }
+  function storyHUD() {
+    ctx.fillStyle = 'rgba(0,10,4,.6)'; ctx.fillRect(10, 10, 320, 62);
+    ctx.fillStyle = '#3dff86'; ctx.font = 'bold 14px monospace'; ctx.fillText(CH_NAMES[S.ch].toUpperCase(), 20, 31);
+    ctx.font = '11px monospace'; ctx.fillStyle = '#9fe8b8'; ctx.fillText('INTEGRITY', 20, 50);
+    const mx = S.ch === 2 ? 4 : 3;
+    for (let i = 0; i < mx; i++) { ctx.fillStyle = i < S.hp ? '#3dff86' : '#123d22'; ctx.fillRect(92 + i * 16, 41, 12, 10); }
+    ctx.fillStyle = '#9fe8b8'; ctx.fillText(S.ch === 2 ? 'STOP' : 'SLOW-MO', 170, 50);
+    ctx.fillStyle = '#123d22'; ctx.fillRect(230, 42, 90, 8);
+    ctx.fillStyle = G.slowOn ? '#d8ffe4' : '#3dff86'; ctx.fillRect(230, 42, 90 * G.slow / 100, 8);
+    ctx.fillStyle = '#5fd88a';
+    if (S.ch === 2) ctx.fillText(`AGENTS LEFT ${S.agents.filter(a => a.st !== 'gone').length}`, 20, 66);
+    if (S.ch === 3 && S.fly) { ctx.fillText(`WOKEN ${S.woken}/${S.need}`, 20, 66); ctx.fillStyle = '#123d22'; ctx.fillRect(130, 59, 190, 6); ctx.fillStyle = '#3dff86'; ctx.fillRect(130, 59, 190 * S.dist / S.goalT, 6); }
+    if (S.ch === 1) ctx.fillText('PHONE: END OF THE HALL ▶', 20, 66);
+    if (G.flash > 0) { ctx.fillStyle = `rgba(200,255,220,${G.flash * .5})`; ctx.fillRect(0, 0, W, H); }
+    if (G.hurtT > 0) { ctx.fillStyle = `rgba(255,40,60,${G.hurtT * .4})`; ctx.fillRect(0, 0, W, H); }
+    drawToast();
+  }
+
   // ---------- loop ----------
   let last = performance.now();
   function frame(now) {
     const dt = Math.min(.05, (now - last) / 1000); last = now;
-    if (G.mode === 'play') {
+    if (G.mode === 'play' && STORY()) {
+      storyUpdate(dt);
+      G.flash = Math.max(0, G.flash - dt); G.toastT -= dt; G.hurtT = Math.max(0, G.hurtT - dt);
+      if (G.shake > 0) G.shake -= dt;
+    } else if (G.mode === 'play') {
       update(dt);
       G.flash = Math.max(0, G.flash - dt); G.toastT -= dt; G.hurtT = Math.max(0, G.hurtT - dt);
       if (G.shake > 0) G.shake -= dt;
     }
-    if (G.mode === 'play' || G.mode === 'paused') {
+    if ((G.mode === 'play' || G.mode === 'paused') && STORY()) storyDraw();
+    else if (G.mode === 'play' || G.mode === 'paused') {
       ctx.save();
       if (G.shake > 0) ctx.translate(rnd(-6, 6) * G.shake, rnd(-6, 6) * G.shake);
       drawScene(); drawActors();
