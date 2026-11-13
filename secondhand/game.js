@@ -808,7 +808,7 @@ function openFiles() {
     s1.innerHTML = M.wrenSeen ? '<b>1</b> WREN<small>— — —</small>' : '<b>1</b> WREN<small>♥♡♡ · THE LAKE · 2 of 3</small>';
     s2.innerHTML = S ? '<b>2</b> ' + esc(S.name) + '<small>' + '♥'.repeat(S.hearts) + '♡'.repeat(3 - S.hearts) + ' · ' + ROOMS[S.room].name + ' · ' + C() + ' of 3</small>' : '<b>2</b> — NEW GAME —<small>&nbsp;</small>';
   }
-  s3.innerHTML = '<b>3</b> ' + (M.slot3Taps > 2 ? 'EMPTY. FOR NOW.' : '?????') + '<small>&nbsp;</small>';
+  s3.innerHTML = M.ended ? '<b>3</b> — NEXT PLAYER —<small>start a new game</small>' : '<b>3</b> ' + (M.slot3Taps > 2 ? 'EMPTY. FOR NOW.' : '?????') + '<small>&nbsp;</small>';
   filesPanel.classList.add('show');
 }
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]); }
@@ -824,7 +824,15 @@ $('slot2').onclick = () => {
   if (S) { filesPanel.classList.remove('show'); startGame(); }
   else { filesPanel.classList.remove('show'); namePanel.classList.add('show'); mode = 'name'; setTimeout(() => $('nameIn').focus(), 50); }
 };
-$('slot3').onclick = () => { M.slot3Taps = (M.slot3Taps || 0) + 1; saveMeta(); SFX.static(0.3); flashMsg(M.slot3Taps > 2 ? 'It\'s waiting for the next player.' : 'This file is corrupted.'); openFiles(); };
+$('slot3').onclick = () => {
+  if (M.ended) {
+    SFX.ok();
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    S = null; M = { visits: M.visits || 1, lastPlayed: 0, wrenSeen: false, ended: false, endName: '', slot3Taps: 0, prevPlayer: M.endName }; saveMeta();
+    filesPanel.classList.remove('show'); namePanel.classList.add('show'); mode = 'name'; $('nameIn').value = ''; setTimeout(() => $('nameIn').focus(), 50);
+    return;
+  }
+  M.slot3Taps = (M.slot3Taps || 0) + 1; saveMeta(); SFX.static(0.3); flashMsg(M.slot3Taps > 2 ? 'It\'s waiting for the next player.' : 'This file is corrupted.'); openFiles(); };
 $('eraseBtn').onclick = () => { $('confirm').classList.add('show'); };
 $('eraseNo').onclick = () => $('confirm').classList.remove('show');
 $('eraseYes').onclick = () => {
@@ -881,7 +889,7 @@ function memoryTick(dt) {
 function afterEndScene() {
   filesPanel.classList.remove('show');
   mode = 'card'; cardT = 0; cardText = ['', 'you are under the dock now.'];
-  cardDone = () => { mode = 'card'; cardT = 0; cardText = ['', 'wait for the next player.']; cardDone = () => openFiles(); };
+  cardDone = () => { mode = 'card'; cardT = 0; cardText = ['', 'wait for the next player.']; cardDone = () => { openFiles(); flashMsg('File 3 is open.'); }; };
   layout();
 }
 
