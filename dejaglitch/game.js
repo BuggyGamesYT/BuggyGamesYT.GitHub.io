@@ -169,7 +169,7 @@
     if (TRACE()) G.sector = Math.min(5, Math.floor(G.trace / 20));
     seg = { t: 0, anomaly: G.anomaly, hinted: false, phoneX: G.hardline ? rnd(900, 2200) : null };
     hunters = [];
-    if (TRACE() && G.trace >= 40) for (let i = 0; i < (G.trace >= 75 ? 2 : 1); i++) hunters.push({ x: 1000 + i * 800 + rnd(0, 300), t: rnd(0, 2), bob: rnd(0, 6) });
+    if (TRACE() && opts.agent === 0 && G.trace >= 40) for (let i = 0; i < (G.trace >= 75 ? 2 : 1); i++) hunters.push({ x: 1000 + i * 800 + rnd(0, 300), t: rnd(0, 2), bob: rnd(0, 6) });
     P = { x: 130, y: 0, vy: 0, jumps: 0, face: 1, maxX: 130, hist: [], phase: 0, inv: 0 };
     walker = { x: 2050, phase: 0 };
     cat = { x: 1050, st: 'wait', a: 1, t: 0, phase: 0 };
@@ -206,7 +206,7 @@
     [25, 50, 75].forEach(m => {
       if (before < m && G.trace >= m && !G.said[m]) {
         G.said[m] = 1;
-        toast('OPERATOR: TRACE ' + m + '%', m === 25 ? 'Keep feeding me glitches. Every one makes your signal louder.' : m === 50 ? 'Hunters are coming online. Watch their red scan beams.' : 'Almost locked. The Agents can feel it too.', 3.2);
+        toast('OPERATOR: TRACE ' + m + '%', m === 25 ? 'Keep feeding me glitches. Every one makes your signal louder.' : m === 50 ? (opts.agent === 0 ? 'Hunters are coming online. Watch their red scan beams.' : 'Halfway there. Stay sharp.') : 'Almost locked. The Agents can feel it too.', 3.2);
         sfx.ring();
       }
     });
