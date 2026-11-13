@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#000000" />
+<title>Low Battery · Buggy Games YT</title>
+<meta name="description" content="Locked in a bus depot after the last bus. Your phone is your only light, and it runs on your real battery. A horror game by Buggy Games YT." />
+<link rel="icon" href="icon.png" />
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #000; color: #ddd; overflow: hidden;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Roboto Mono", monospace;
+    user-select: none; -webkit-user-select: none; touch-action: none; }
+  canvas#cv { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; background: #000; }
+  .panel { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.82); z-index: 20; padding: 16px; }
+  .panel.show { display: flex; }
+  .box { width: 100%; max-width: 460px; max-height: 94vh; overflow: auto; background: #070707; border: 1px solid #2c2c2c; padding: 22px; text-align: center; border-radius: 8px; }
+  h1 { margin: 4px 0 2px; font-size: 34px; letter-spacing: 4px; color: #f2f2f2; }
+  h1 .bat { display: inline-block; width: 46px; height: 22px; border: 3px solid #eee; border-radius: 4px; position: relative; vertical-align: middle; margin-left: 8px; }
+  h1 .bat:after { content: ""; position: absolute; right: -8px; top: 5px; width: 4px; height: 7px; background: #eee; border-radius: 0 2px 2px 0; }
+  h1 .bat i { position: absolute; left: 2px; top: 2px; bottom: 2px; width: 7px; background: #e0303a; animation: blink 1.2s infinite steps(1); }
+  @keyframes blink { 50% { opacity: .15; } }
+  h2 { margin: 0 0 12px; font-size: 14px; color: #999; font-weight: 400; letter-spacing: 1px; }
+  p { font-size: 14px; line-height: 1.55; color: #aaa; margin: 10px 0; }
+  .b { display: inline-block; font: inherit; font-size: 16px; color: #000; background: #e8e2c8; border: 0; padding: 12px 22px; cursor: pointer; margin: 6px; border-radius: 4px; text-decoration: none; }
+  .b.alt { background: transparent; color: #aaa; border: 1px solid #444; }
+  .b:active { transform: scale(.97); }
+  #batInfo { border: 1px solid #333; padding: 10px; border-radius: 6px; font-size: 14px; color: #ccc; margin: 12px 0; }
+  #batInfo b { color: #fff; }
+  .opt { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: #aaa; margin: 8px 0; cursor: pointer; }
+  .opt input { width: 18px; height: 18px; accent-color: #e0303a; }
+  ul.help { text-align: left; font-size: 13px; color: #aaa; line-height: 1.7; padding-left: 18px; margin: 8px 0; }
+  .k { display: inline-block; border: 1px solid #555; padding: 0 5px; font-size: 12px; color: #eee; border-radius: 3px; }
+  .note { font-family: "Courier New", monospace; text-align: left; background: #e9e3cf; color: #222; padding: 18px; border-radius: 2px; font-size: 15px; line-height: 1.6; transform: rotate(-.6deg); white-space: pre-line; }
+  .small { font-size: 11px; color: #555; margin-top: 14px; }
+  #endTitle { font-size: 26px; letter-spacing: 3px; color: #fff; margin: 6px 0; }
+  #endText { white-space: pre-line; }
+  /* touch */
+  #touch { position: fixed; inset: 0; z-index: 9; pointer-events: none; display: none; }
+  #touch.on { display: block; }
+  #touch button { position: absolute; pointer-events: auto; touch-action: none; width: 74px; height: 74px; border-radius: 50%; border: 2px solid rgba(220,220,220,.35); background: rgba(40,40,40,.55); color: #ddd; font: inherit; font-size: 12px; letter-spacing: 1px; }
+  #touch button.on { background: rgba(224,48,58,.6); color: #fff; }
+  #bHide { right: max(22px, env(safe-area-inset-right)); bottom: max(26px, env(safe-area-inset-bottom)); }
+  #bLight { right: max(108px, calc(env(safe-area-inset-right) + 86px)); bottom: max(26px, env(safe-area-inset-bottom)); width: 58px !important; height: 58px !important; }
+  #bPause { right: max(14px, env(safe-area-inset-right)); top: max(12px, env(safe-area-inset-top)); width: 44px !important; height: 44px !important; font-size: 16px !important; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div id="touch">
+  <button id="bLight">LIGHT</button>
+  <button id="bHide">HIDE</button>
+  <button id="bPause">II</button>
+</div>
+
+<div class="panel show" id="title">
+  <div class="box">
+    <h1>LOW BATTERY<span class="bat"><i></i></span></h1>
+    <h2>a horror game by Buggy Games YT</h2>
+    <p>You fell asleep on the last bus. You woke up locked in the depot. The power is out, and your phone is the only light you've got.</p>
+    <div id="batInfo">Checking your battery...</div>
+    <label class="opt" id="simRow"><input type="checkbox" id="simChk" /> Use the in-game battery instead</label>
+    <button class="b" id="startBtn">Start</button>
+    <button class="b alt" id="helpBtn">How to play</button>
+    <div class="small">© 2026 Buggy Games YT. All rights reserved.</div>
+  </div>
+</div>
+
+<div class="panel" id="help">
+  <div class="box">
+    <h2 style="color:#eee;font-size:18px">How to play</h2>
+    <ul class="help">
+      <li>Find the <b>3 fuses</b> and bring them to the fuse box by the gate.</li>
+      <li>Your flashlight is as bright as your <b>real phone battery</b>. Low battery = dim, flickering light.</li>
+      <li>Something lives in the dark. A strong beam pushes it back. A weak one won't.</li>
+      <li>Plug your phone in and the light steadies... but it can hear the charger.</li>
+      <li>Hide (cover the light) and stay still to make it lose you.</li>
+      <li>Green plugs are checkpoints. With the in-game battery, stand on one to charge.</li>
+    </ul>
+    <ul class="help">
+      <li><b>Keyboard:</b> <span class="k">WASD</span>/<span class="k">arrows</span> move, mouse aims, <span class="k">Space</span> hide, <span class="k">F</span> light on/off, <span class="k">P</span> pause, <span class="k">M</span> mute.</li>
+      <li><b>Touch:</b> drag the left side to move, drag the right side to aim, HIDE and LIGHT buttons.</li>
+    </ul>
+    <button class="b" id="helpBack">Back</button>
+  </div>
+</div>
+
+<div class="panel" id="notePanel">
+  <div class="box" style="background:transparent;border:0">
+    <div class="note" id="noteText"></div>
+    <button class="b" id="noteClose" style="margin-top:16px">Close</button>
+  </div>
+</div>
+
+<div class="panel" id="pausePanel">
+  <div class="box">
+    <h2 style="color:#eee;font-size:20px">Paused</h2>
+    <button class="b" id="resumeBtn">Resume</button>
+    <button class="b alt" id="muteBtn">Sound: on</button>
+    <button class="b alt" id="quitBtn">Quit to title</button>
+  </div>
+</div>
+
+<div class="panel" id="endPanel">
+  <div class="box">
+    <div id="endTitle"></div>
+    <p id="endText"></p>
+    <button class="b" id="againBtn">Play again</button>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
