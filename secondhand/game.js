@@ -688,6 +688,7 @@ function enterRoom(name, x, y, opts) {
   if (rm.boss && S.bosses[rm.area]) spawnBossLoot(rm.area);
   // push blocks
   for (const [bx, by] of rm.blocks || []) blocks.push({ tx: bx, ty: by, x: bx * 16, y: by * 16, mv: 0 });
+  if (blocks.length && rm.puzzle === 'blocks' && !S.solved[name] && !S.flags.pushHint) { S.flags.pushHint = true; setTimeout(() => showToast('Walk into the stone block to push it onto the red plate. Stuck? Leave the room to reset it.', 4500), 600); }
   if (rm.puzzle === 'blocks' && S.solved[name]) {
     const plates = []; for (let yy = 0; yy < RH; yy++) for (let xx = 0; xx < RW; xx++) if (rm.map[yy][xx] === 'o') plates.push([xx, yy]);
     plates.forEach(([px, py], i) => { if (blocks[i]) { blocks[i].tx = px; blocks[i].ty = py; blocks[i].x = px * 16; blocks[i].y = py * 16; } });
@@ -853,9 +854,9 @@ function dialogAdvance() {
 
 // ---------- toast ----------
 let toastTimer = null;
-function showToast(s) {
+function showToast(s, ms) {
   const t = $('toast'); t.textContent = s; t.classList.add('show');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms || 1800);
 }
 
 // ---------- A / B ----------
@@ -1555,7 +1556,7 @@ function update(dt) {
   // player movement
   let mx = 0, my = 0;
   if (held.left) mx -= 1; if (held.right) mx += 1; if (held.up) my -= 1; if (held.down) my += 1;
-  if (padStyle === 'stick' && (AXIS.x || AXIS.y)) { mx = AXIS.x; my = AXIS.y; }
+  if (padStyle === 'stick' && (AXIS.x || AXIS.y)) { mx = AXIS.x; my = AXIS.y; if (Math.abs(my) < Math.abs(mx) * 0.4) my = 0; else if (Math.abs(mx) < Math.abs(my) * 0.4) mx = 0; }
   const mag = Math.hypot(mx, my);
   if (mag > 1) { mx /= mag; my /= mag; }
   if (P.swing > 0) { P.swing -= dt; mx *= 0.15; my *= 0.15; }
@@ -1574,7 +1575,8 @@ function update(dt) {
     P.anim += dt * (P.running ? 1.8 : 1); P.step = ((P.anim * 7) | 0) % 2;
     if (P.running) { P.dust -= dt; if (P.dust <= 0) { P.dust = 0.09; puff(P.x - FV[P.dir][0] * 4, P.y + 1); } }
     // bumping into things: doors, hatches, push blocks
-    const blocked = P.x === bx && P.y === by;
+    // blocked along the way you're facing (joystick input always has a little sideways drift)
+    const blocked = (P.dir >= 2 ? P.x === bx : P.y === by) && (P.dir >= 2 ? Math.abs(mx) > 0.5 : Math.abs(my) > 0.5);
     if (blocked && P.swing <= 0) {
       const [fx_, fy_] = FV[P.dir];
       const tx = Math.floor((P.x + fx_ * 7) / 16), ty = Math.floor((P.y - 1 + fy_ * 6) / 16);
