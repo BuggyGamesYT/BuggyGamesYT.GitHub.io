@@ -112,8 +112,8 @@
   function stopHum() { if (hum) { try { hum.o.stop(); hum.o2.stop(); } catch (e) {} hum = null; } }
 
   // ---------- input ----------
-  const keys = { left: false, right: false, jump: false, slow: false, sight: false };
-  const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'jump', KeyW: 'jump', KeyZ: 'jump', Space: 'slow', ShiftLeft: 'slow', ShiftRight: 'slow', KeyC: 'sight', KeyE: 'sight' };
+  const keys = { left: false, right: false, jump: false, slow: false, sight: false, run: false };
+  const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'jump', KeyW: 'jump', KeyZ: 'jump', Space: 'slow', ShiftLeft: 'run', ShiftRight: 'run', KeyR: 'run', KeyC: 'sight', KeyE: 'sight' };
   addEventListener('keydown', e => {
     const k = KEYMAP[e.code];
     if (k) { if (k === 'jump' && !keys.jump) jumpPressed = true; if (k === 'sight' && !keys.sight) sightPressed = true; keys[k] = true; e.preventDefault(); }
@@ -365,7 +365,8 @@
 
     // player
     const mv = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
-    P.x += mv * SPEED * dt; if (mv) { P.face = mv; P.phase += dt * 12; }
+    const run = keys.run ? 1.8 : 1;
+    P.x += mv * SPEED * run * dt; if (mv) { P.face = mv; P.phase += dt * 12 * run; }
     if (jumpPressed) {
       if (P.y === 0 && P.vy === 0) { P.vy = 640; P.jumps = 1; sfx.jump(); }
       else if (P.jumps < 3) {
@@ -377,7 +378,7 @@
     jumpPressed = false;
     if (P.y > 0 || P.vy > 0) { P.y += P.vy * dt; P.vy -= 1500 * dt; if (P.y <= 0) { P.y = 0; P.vy = 0; P.jumps = 0; } if (P.y > 280) { P.y = 280; P.vy = Math.min(P.vy, 0); } }
     P.maxX = Math.max(P.maxX, P.x);
-    if (P.maxX < 700 && P.x < 110) {
+    if (G.firstLoop && P.maxX < 700 && P.x < 110) {
       P.x = 110;
       if (!seg.hinted && G.firstLoop && G.sector === 0) { seg.hinted = true; toast('WALK THE LOOP FIRST', 'Look around, then decide.', 2); }
     }
@@ -408,7 +409,7 @@
     if (cat.st === 'wait' && P.x > 520) { cat.st = 'walk'; cat.x = 1050; cat.a = 1; }
     else if (cat.st === 'walk') { cat.x -= 75 * wdt; cat.phase += wdt * 14; if (cat.x < 820) { cat.st = 'fade'; cat.t = 0; } }
     else if (cat.st === 'fade') { cat.t += wdt; cat.a = 1 - cat.t / .5; if (cat.t > .5) { cat.st = 'gone'; cat.t = 0; } }
-    else if (cat.st === 'gone' && seg.anomaly === 'cat') { cat.t += wdt; if (cat.t > .7) { cat.st = 'walk'; cat.x = 1050; cat.a = 1; } }
+    else if (cat.st === 'gone' && seg.anomaly === 'cat') { cat.t += wdt; if (cat.t > .5) { cat.st = 'walk'; cat.x = 1050; cat.a = 1; cat.rep = true; G.flash = Math.max(G.flash, .25); tone(140, .25, 'square', .04, 70); } }
 
     // agents
     const spd = (110 + G.sector * 14) * AG().sp;
@@ -633,14 +634,25 @@
     if (A === 'tpose') { wo.tpose = true; }
     if (A === 'clip') wo.sunk = 46;
     if (A !== 'clip') shadow(walker.x, 16);
-    person(walker.x, FY, wo);
-    if (A === 'possess' && (t % 3) > 2.35) {
+    const poss = A === 'possess' && (t % 2.4) > 1.2;
+    if (poss) {
       Object.assign(wo, { coat: '#22252b', pants: '#1b1d22', hair: '#1c1c1c', shades: '#000', tie: true, ear: true, long: false });
+      ctx.fillStyle = 'rgba(61,255,134,.5)';
+      for (let k = 0; k < 7; k++) ctx.fillRect(walker.x - 24 + ((k * 13 + Math.floor(t * 30) * 7) % 48), FY - 120 + ((k * 29 + Math.floor(t * 25) * 11) % 120), 3 + (k % 3) * 4, 3);
     }
+    if (A === 'possess' && Math.abs((t % 2.4) - 1.2) < .08) { ctx.save(); ctx.globalAlpha = .55; ctx.translate(-5, 0); person(walker.x, FY, Object.assign({}, wo, { coat: '#3dff86', pants: '#3dff86', skin: '#3dff86', hair: '#3dff86' })); ctx.restore(); }
+    person(walker.x, FY, wo);
     if (A === 'clones') { shadow(walker.x + 44, 16); person(walker.x + 44, FY, wo); }
 
     // cat
-    if (cat.st === 'walk' || cat.st === 'fade') drawCat(cat.x, cat.a, cat.phase);
+    if (cat.st === 'walk' || cat.st === 'fade') {
+      if (cat.rep) {
+        ctx.save(); ctx.globalAlpha = .45; ctx.translate(6 + Math.sin(t * 40) * 3, 0); ctx.filter = 'none';
+        drawCat(cat.x + 30, cat.a * .6, cat.phase, '#3dff86'); ctx.restore();
+        if (Math.floor(t * 8) % 2) { ctx.fillStyle = 'rgba(61,255,134,.35)'; ctx.fillRect(cat.x - 40, FY - 50, 80, 3); ctx.fillRect(cat.x - 30, FY - 26, 70, 2); }
+      }
+      drawCat(cat.x, cat.a, cat.phase);
+    }
 
     ctx.restore();
   }
@@ -651,10 +663,10 @@
     ctx.fillStyle = '#c9b46a'; ctx.fillRect(x + 64, 320, 8, 8);
     if (label) { ctx.fillStyle = '#ffb000'; ctx.font = 'bold 12px monospace'; ctx.fillText(label, x + 30, 260); }
   }
-  function drawCat(x, a, ph) {
-    ctx.save(); ctx.globalAlpha = clamp(a, 0, 1); ctx.translate(x, FY);
+  function drawCat(x, a, ph, col) {
+    ctx.save(); ctx.globalAlpha = clamp(a, 0, 1); ctx.translate(x, FY); ctx.scale(1.7, 1.7);
     shadow(0, 14, .25);
-    ctx.fillStyle = '#0b0b0b';
+    ctx.fillStyle = col || '#0b0b0b';
     ctx.fillRect(-14, -16, 28, 10); // body
     ctx.fillRect(-20, -24, 10, 10); // head (facing left)
     ctx.fillRect(-20, -28, 3, 5); ctx.fillRect(-13, -28, 3, 5); // ears
