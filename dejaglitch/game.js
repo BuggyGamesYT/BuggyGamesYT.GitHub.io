@@ -326,10 +326,11 @@
   $('endTitleBtn').onclick = toTitle;
   $('quitBtn').onclick = toTitle;
   $('resumeBtn').onclick = resume;
+  $('skipBtn').onclick = storySkip;
   $('pauseBtn').onclick = () => { if (G.mode === 'play') pause(); };
   $('muteBtn').onclick = toggleMute;
   function toTitle() { setSlowLabel('SLOW'); G.mode = 'title'; stopHum(); bestLine(); showPanel('title'); $('touch').classList.remove('on'); $('pauseBtn').classList.remove('on'); }
-  function pause() { if (G.mode !== 'play') return; G.mode = 'paused'; for (const k in keys) keys[k] = false; showPanel('pause'); }
+  function pause() { if (G.mode !== 'play') return; $('skipBtn').style.display = STORY() ? '' : 'none'; G.mode = 'paused'; for (const k in keys) keys[k] = false; showPanel('pause'); }
   function resume() { if (G.mode !== 'paused') return; hidePanels(); G.mode = 'play'; last = performance.now(); }
   function toggleMute() {
     muted = !muted; try { localStorage.setItem('dejaglitch-mute', muted ? '1' : '0'); } catch (e) {}
@@ -827,17 +828,17 @@
     P = { x: 120, y: 0, vy: 0, jumps: 0, face: 1, phase: 0, inv: 0, maxX: 120, hist: [] };
     const d = opts.agent;
     if (ch === 1) {
-      S.len = 3300; S.hull = S.hullMax = [80, 110, 150][d]; S.hp = 3;
-      const doors = [[650, 1150, 1650, 2150, 2650], [800, 1600, 2400], [1000, 2200]][d];
+      S.hpMax = 3; S.len = 5600; S.hull = S.hullMax = [120, 165, 220][d]; S.hp = 3;
+      const doors = [[650, 1250, 1850, 2450, 3050, 3650, 4250, 4850], [800, 1700, 2600, 3500, 4400], [1000, 2400, 3800, 4900]][d];
       S.agents = doors.map(x => ({ x, door: x, st: 'hid', hp: 1, face: -1, phase: 0, cool: rnd(1, 2), rez: 0 }));
       toast(CH_NAMES[1], 'Reach the phone at the end of the hall before the machines break into the ship.', 4.5);
     } else if (ch === 2) {
-      S.hp = [5, 7, 8][d]; S.cut = S.retried ? 1.2 : 4; P.x = 220; P.down = true;
+      S.hp = S.hpMax = [5, 8, 8][d]; S.cut = S.retried ? 1.2 : 4; P.x = 220; P.down = true;
       const n = [3, 2, 1][d];
       for (let i = 0; i < n; i++) S.agents.push({ x: 640 + i * 110, st: 'idle', hp: d ? 1 : 2, face: -1, phase: 0, cool: 1.5 + i * .7, wind: 0, stag: 0 });
       toast('...', '', 1);
     } else {
-      S.hp = 3; S.cut = 7; S.fly = false; P.x = 360; P.alt = 0; S.dist = 0; S.goalT = 60; S.need = [12, 10, 8][d];
+      S.hp = S.hpMax = 3; S.cut = 7; S.fly = false; P.x = 360; P.alt = 0; S.dist = 0; S.goalT = 60; S.need = [12, 10, 8][d];
       S.orbs = []; S.sigs = []; S.spawnO = .5; S.spawnS = 1.5;
     }
     hidePanels();
@@ -847,6 +848,7 @@
     if (ch > (best.storyCh || 0)) { best.storyCh = ch; save(); }
     sfx.glitch();
   }
+  function storySkip() { if (!S || G.diff !== 'story') return; hidePanels(); G.mode = 'play'; last = performance.now(); storyNext(); }
   function storyStartRetry(ch) { const ws = S; storyStart(ch); if (ch === 2) { S.retried = true; S.cut = 1.2; } }
   function setSlowLabel(t) { const b = document.querySelector('#touch [data-k="slow"]'); if (b) b.textContent = t; }
   function storyHit() {
@@ -943,11 +945,11 @@
     if (S.cut > 0) {
       S.cut -= dt;
       if (S.cut < 3.2 && !S.said1) { S.said1 = 1; toast('OPERATOR', 'Your heart just started again. Get up. You can see it now.', 3); }
-      if (S.cut <= 0) { P.down = false; S.code = true; G.flash = 1; sfx.sector(); toast('YOU CAN SEE THE CODE', opts.shoot ? 'Hold STOP to freeze bullets, let go to send them back.' : 'When an Agent flashes HOLD STOP!, hold STOP to counter him.', 4); }
+      if (S.cut <= 0) { P.down = false; S.code = true; G.flash = 1; sfx.sector(); toast('YOU CAN SEE THE CODE', opts.shoot ? 'Hold STOP to freeze bullets, let go to send them back.' : 'Walk up to an Agent and hold STOP to knock him down. Then walk into him.', 4); }
       return;
     }
     walkPlayer(dt, 40, W - 40);
-    const holding = G.slowOn;
+    const holding = G.slowOn || (keys.slow && S.ch === 2);
     // freeze bullets in front of you while holding, send them back on release
     for (const b of S.bullets) {
       if (!b.back && holding && Math.abs(b.x - P.x) < 150 && !b.frozen) { b.frozen = true; b.fy = rnd(-14, 14); tone(1500, .05, 'sine', .02); }
@@ -974,13 +976,14 @@
       } else {
         const busy = S.agents.some(o => o !== a && o.wind > 0);
         if (a.wind > 0) {
-          if (holding && Math.abs(dx) < 110) { a.wind = 0; agentHurt(a, -Math.sign(dx)); a.cool = rnd(1.4, 2.2) * AG().cd; G.flash = .5; sfx.good(); continue; }
+          if (keys.slow && Math.abs(dx) < 140) { a.wind = 0; agentHurt(a, -Math.sign(dx)); a.cool = rnd(1.4, 2.2) * AG().cd; G.flash = .5; sfx.good(); continue; }
           a.wind -= dt;
           if (a.wind <= 0) {
             if (Math.abs(dx) < 75) storyHit();
             a.cool = rnd(1.6, 2.6) * AG().cd;
           }
-        } else if (Math.abs(dx) > 55) { a.x += Math.sign(dx) * 110 * AG().sp * wdt; a.phase += wdt * 8; }
+        } else if (keys.slow && Math.abs(dx) < 90) { agentHurt(a, -Math.sign(dx)); a.cool = rnd(1.4, 2.2) * AG().cd; G.flash = .5; sfx.good(); continue; }
+        else if (Math.abs(dx) > 55) { a.x += Math.sign(dx) * 110 * AG().sp * wdt; a.phase += wdt * 8; }
         else if (a.cool <= 0 && !busy) a.wind = [1.1, 1.4, 1.7][opts.agent];
       }
     }
@@ -1159,7 +1162,7 @@
     ctx.fillStyle = 'rgba(0,10,4,.6)'; ctx.fillRect(10, 10, 320, 62);
     ctx.fillStyle = '#3dff86'; ctx.font = 'bold 14px monospace'; ctx.fillText(CH_NAMES[S.ch].toUpperCase(), 20, 31);
     ctx.font = '11px monospace'; ctx.fillStyle = '#9fe8b8'; ctx.fillText('INTEGRITY', 20, 50);
-    const mx = S.ch === 2 ? 4 : 3;
+    const mx = S.hpMax || 3;
     for (let i = 0; i < mx; i++) { ctx.fillStyle = i < S.hp ? '#3dff86' : '#123d22'; ctx.fillRect(92 + i * 16, 41, 12, 10); }
     ctx.fillStyle = '#9fe8b8'; ctx.fillText(S.ch === 2 ? 'STOP' : 'SLOW-MO', 170, 50);
     ctx.fillStyle = '#123d22'; ctx.fillRect(230, 42, 90, 8);
