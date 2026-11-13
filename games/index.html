@@ -199,7 +199,7 @@
             <p class="muted">Stuff I made. Bugs included, on purpose this time.</p>
           </div>
           <div class="pick" id="pick">
-            <input class="pick__search" type="search" placeholder="Search games and apps…" aria-label="Search games and apps" autocomplete="off" />
+            <input class="pick__search" type="search" placeholder="Search by name…" aria-label="Search games and apps" autocomplete="off" />
             <p class="pick__label">Games</p><div class="pick__grid"><a class="pick__tile" href="#speedrunghost" data-name="speedrun ghost"><img src="speedrunghost.png" alt="" /><span>Speedrun Ghost</span></a><a class="pick__tile" href="#commentsection" data-name="comment section"><img src="commentsection.png" alt="" /><span>Comment Section</span></a><a class="pick__tile" href="#lowbattery" data-name="low battery"><img src="lowbattery.png" alt="" /><span>Low Battery</span></a><a class="pick__tile" href="#secondhand" data-name="secondhand"><img src="secondhand.png" alt="" /><span>Secondhand</span></a><a class="pick__tile" href="#patchnotes" data-name="patch notes"><img src="patchnotes.png" alt="" /><span>Patch Notes</span></a><a class="pick__tile" href="#dejaglitch" data-name="déjà glitch"><img src="dejaglitch.png" alt="" /><span>Déjà Glitch</span></a><a class="pick__tile" href="#bugsquash" data-name="bug squash"><img src="bugsquash.png" alt="" /><span>Bug Squash</span></a><a class="pick__tile" href="#dealercraft" data-name="dealercraft"><img src="dealercraft.png" alt="" /><span>DealerCraft</span></a></div>
             <p class="pick__label">Apps</p><div class="pick__grid"><a class="pick__tile" href="#theclaww" data-name="the claww"><img src="theclaww.png" alt="" /><span>The Claww</span></a><a class="pick__tile" href="#hellorgb" data-name="hello rgb"><img src="hellorgb.png" alt="" /><span>Hello RGB</span></a></div>
             <p class="pick__none muted" hidden>Nothing matches that. Try another word.</p>
@@ -287,10 +287,10 @@
         var pick = document.getElementById("pick"), q = pick.querySelector(".pick__search"),
             none = pick.querySelector(".pick__none"), btn = document.querySelector(".to-pick");
         q.addEventListener("input", function () {
-          var t = q.value.trim().toLowerCase(), shown = 0;
+          var t = q.value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " "), shown = 0;
           pick.querySelectorAll(".pick__tile").forEach(function (a) {
             var card = document.getElementById(a.getAttribute("href").slice(1));
-            var hit = !t || a.dataset.name.indexOf(t) > -1 || (card && card.textContent.toLowerCase().indexOf(t) > -1);
+            var hit = !t || a.dataset.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").indexOf(t) > -1;
             a.hidden = !hit; if (card) card.hidden = !hit; if (hit) shown++;
           });
           none.hidden = shown > 0;
