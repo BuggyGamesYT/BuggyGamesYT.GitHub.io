@@ -157,32 +157,72 @@
       else if (kind === 'tall') ops.push(['#', bx, F - 2, 1, 2]);
       else if (kind === 'spikepit') { ops.push(['.', bx, F, 1, 17 - F]); ops.push(['^', bx + 1, F - 1, 1, 1]); }
     }
-    return ops;
+    // enemies on flat stretches (never in puzzle rooms)
+    const foes = [];
+    if (n >= 1) {
+      let a = 4;
+      const flat = c => ground[c] === F && !bits.some(([kind, bx, w]) => c >= bx - 1 && c <= bx + w);
+      for (let c = 4; c <= A - 4; c++) {
+        if (flat(c) && c < A - 4) continue;
+        const len = c - a;
+        if (len >= 4 && rnd() < Math.min(0.8, 0.3 + n / 110)) {
+          const fly = n >= 11 && (len < 6 || rnd() < 0.3), blink = !fly && n >= 30 && rnd() < 0.35;
+          if (!fly && len < 6) { a = c + 1; continue; }
+          foes.push({ type: fly ? 'flyer' : blink ? 'blinker' : 'walker', a: a + (fly ? 0 : 0.6), b: c - (fly ? 0 : 0.6) });
+        }
+        a = c + 1;
+      }
+    }
+    return { ops, foes };
+  }
+
+  // boss arena: 30 wide, two ledges, the exit appears when the boss goes down
+  const BOSSES = ['bounce', 'leak', 'loop', 'race', 'patch'];
+  const BOSS_NAME = { bounce: 'NULL_POINTER.EXE', leak: 'MEMORY_LEAK.DLL', loop: 'INFINITE_LOOP.BAT', race: 'RACE_CONDITION.SYS', patch: 'PATCH_BOT_9000', final: 'GOLD_MASTER.EXE' };
+  const BOSS_HINT = {
+    bounce: 'It jumps at you. Jump on its head. Dashing into it works too.',
+    leak: 'Dodge the drips. When it sags to the floor and glows, jump on it or dash into it.',
+    loop: 'Stay away from the spinning orbs. When it lags and drops to the floor, hit it.',
+    race: 'Two copies, one real. The real one has the yellow outline. Hit that one.',
+    patch: 'Jump the low patches, stay down for the high ones. After it charges into the wall it gets dizzy. Hit it then.',
+    final: 'It uses every boss bug, one after another. Hit it whenever it glows.' };
+  function arena(off) {
+    return [['#', off, 0, 30, 1], ['#', off, 16, 30, 1], ['#', off, 0, 1, 16], ['#', off + 29, 0, 1, 16], ['#', off + 5, 13, 4, 1], ['#', off + 21, 13, 4, 1], ['.', off, 14, 1, 2]];
   }
 
   // one long level: run, puzzle room, run, puzzle room ... all side by side in one wide map
-  function stitch(rnd, n, rooms, bugAt) {
-    const ops = [], regions = [];
+  function stitch(rnd, n, rooms, bugAt, boss) {
+    const ops = [], regions = [], foes = [];
+    const addRun = (A, f0, f1) => { const r = makeRun(rnd, n, A, f0, f1); for (const o of r.ops) { const q = o.slice(); q[1] += off; ops.push(q); } for (const e of r.foes) foes.push({ type: e.type, a: e.a + off, b: e.b + off }); };
     let off = 0, f0 = 16;
     rooms.forEach((R, k) => {
       const m = meta(R);
       const A = 14 + Math.min(30, Math.floor(n * 0.35)) + Math.floor(rnd() * 8);
       const f1 = m.sy + 1;
-      for (const o of makeRun(rnd, n, A, f0, f1)) { const q = o.slice(); q[1] += off; ops.push(q); }
+      addRun(A, f0, f1);
       if (k === 0) { ops.push(['#', 0, 0, 1, 17]); ops.push(['P', 1, f0 - 1]); }
       regions.push({ x0: off, x1: off + A, live: R.live, need: 0, room: -1, spawn: { c: off + 1, r: f0 - 1 } });
       off += A;
       for (const o of R.ops) {
         if (o[0] === 'P' || (o[0] === 'B' && k !== bugAt)) continue;
-        const q = o.slice(); q[1] += off; if (q[0] === 'E' && k < rooms.length - 1) q[0] = 'X'; ops.push(q);
+        const q = o.slice(); q[1] += off; if (q[0] === 'E' && (k < rooms.length - 1 || boss)) q[0] = 'X'; ops.push(q);
       }
       ops.push(['.', off, m.sy - 1, 1, 2]);
-      const hole = k < rooms.length - 1 ? { c: off + R.w - 1, rows: m.g[m.er - 1][R.w - 2] === '.' ? [m.er - 1, m.er] : [m.er] } : null;
+      const hole = k < rooms.length - 1 || boss ? { c: off + R.w - 1, rows: m.g[m.er - 1][R.w - 2] === '.' ? [m.er - 1, m.er] : [m.er] } : null;
       regions.push({ hole, x0: off, x1: off + R.w, live: R.live, need: R.need || 0, room: k, tpl: R.tpl, hint: R.hint, spawn: { c: m.sx + off, r: m.sy }, door: { c: off, r: m.sy - 1, wall: [m.g[m.sy - 1][0], m.g[m.sy][0]] } });
       off += R.w;
       f0 = Math.min(16, m.er + 1);
     });
-    return { w: off, h: 17, need: 0, ops, regions };
+    if (boss) {
+      const A = 18 + Math.floor(rnd() * 6);
+      addRun(A, f0, 16);
+      regions.push({ x0: off, x1: off + A, live: [], need: 0, room: -1, spawn: { c: off + 1, r: f0 - 1 } });
+      off += A;
+      for (const o of arena(off)) ops.push(o);
+      regions.push({ x0: off, x1: off + 30, live: [], need: 0, room: -1, boss, hint: BOSS_HINT[boss], spawn: { c: off + 3, r: 15 }, door: { c: off, r: 14, wall: ['#', '#'] } });
+      off += 30;
+    }
+    return { w: off, h: 17, need: 0, ops, regions, foes };
   }
 
   function generate(seed) {
@@ -205,7 +245,9 @@
       if (final) rooms.push(FINALE);
       recent = rooms.slice();
       const bugAt = Math.floor(rnd() * rooms.length);
-      const L = stitch(rnd, n, rooms, bugAt);
+      const boss = (n + 1) % 10 === 0 ? (final ? 'final' : BOSSES[((n + 1) / 10 - 1) % 5]) : null;
+      const L = stitch(rnd, n, rooms, bugAt, boss);
+      if (boss) { L.boss = boss; L.bossName = BOSS_NAME[boss] + ((n + 1) > 50 && !final ? ' v2' : ''); L.bossHp = final ? 6 : (n + 1) > 50 ? 5 : 3; L.hard = (n + 1) > 50 || final; }
       const live = new Set(); rooms.forEach(R => R.live.forEach(g => live.add(g)));
       const name = final ? 'Gold Master' : pick(NAMES_A) + ' ' + pick(NAMES_B);
       const hint = rooms.length === 1 ? rooms[0].hint : rooms.map((R, k) => 'Puzzle ' + (k + 1) + ': ' + R.hint).join(' ');
@@ -247,7 +289,8 @@
     this.idx = idx; this.L = L;
     this.live = liveFor(idx); this.used = new Set();
     this.keys = 0; this.frame = 0; this.done = false; this.dead = 0; this.doorMsg = 0; this.kept = 0; this.bug = false; this.reveal = 0;
-    this.loadRoom(L); this.reg = -1; this.ckpt = 0; this.room = -1; this.stage = 1; this.cleared = new Set();
+    this.loadRoom(L); this.reg = -1; this.ckpt = 0; this.room = -1; this.stage = 1; this.cleared = new Set(); this.boss = null; this.shots = [];
+    this.foes = (L.foes || []).map((f, i) => ({ type: f.type, a: f.a * T, b: f.b * T, x: (f.a + f.b) / 2 * T - 13, y: f.type === 'flyer' ? 16 * T - 100 : 16 * T - 24, w: 26, h: 24, vx: (i % 2 ? 1 : -1) * (0.9 + Math.min(1, idx / 80)), t: i * 37, base: 16 * T - 100 }));
     if (L.regions) this.region(0);
   };
   Game.prototype.openHole = function (Rg) { for (const r of Rg.hole.rows) this.grid[r][Rg.hole.c] = '.'; };
@@ -260,6 +303,7 @@
     if (k > this.ckpt) {
       this.ckpt = k;
       this.spawn = { x: Rg.spawn.c * T + 6, y: (Rg.spawn.r + 1) * T - 28 };
+      if (Rg.boss) this.startBoss(Rg);
       if (Rg.room >= 0 && Rg.room > this.room) { this.room = Rg.room; this.stage = Rg.room + 2; this.keys = 0; this.kept = 0; this.ev('stage', { room: Rg.room + 1, of: L.puzzles }); }
     }
   };
@@ -354,6 +398,9 @@
       this.cleared = cleared || new Set(); for (const k of this.cleared) this.openHole(this.L.regions[k]);
       this.ckpt = ckpt; this.room = room; this.stage = stage; this.reg = ckpt; this.live = new Set(Rg.live); this.need = Rg.need; if (Rg.room >= 0) this.R = Rg;
       this.spawn = { x: Rg.spawn.c * T + 6, y: (Rg.spawn.r + 1) * T - 28 }; this.p.x = this.spawn.x; this.p.y = this.spawn.y;
+      if (Rg.boss) this.startBoss(Rg, true);
+      // enemies behind the checkpoint stay gone
+      this.foes = this.foes.filter(f => f.a >= Rg.x0 * T);
     }
     if (bug) { this.bug = true; for (const row of this.grid) for (let c = 0; c < row.length; c++) if (row[c] === 'B') row[c] = '.'; }
     if (kept > 0 && live.has('deathkey')) { this.keys = kept; this.ev('deathkey'); }
@@ -495,6 +542,8 @@
       if (p.dash > 0 && LV.has('iframes')) { if (!p.ifr) { p.ifr = true; this.ev('iframes'); } }
       else return this.die('spikes');
     }
+    if (this.foes.length && this.stepFoes()) return;
+    if (this.boss && this.stepBoss(inp)) return;
     if (this.L.regions) {
       const cc = Math.floor((p.x + p.w / 2) / T), rg = this.L.regions;
       let k = this.reg; while (k < rg.length - 1 && cc >= rg[k].x1) k++; while (k > 0 && cc < rg[k].x0) k--;
@@ -508,6 +557,143 @@
       if (Rg.hole && !this.cleared.has(this.reg)) { this.cleared.add(this.reg); this.openHole(Rg); this.ev('clear', { room: Rg.room + 1, of: this.L.puzzles }); }
     }
     if (this.overlapsChar(p, 'E', 4)) { this.done = true; this.ev('exit'); }
+  };
+
+  // ---------- enemies ----------
+  const over = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  // what touching e means: 'stomp' (landed on it), 'zap' (dashed into it), or 'hurt'
+  Game.prototype.contact = function (e) {
+    const p = this.p;
+    if (!over(p, e)) return null;
+    if (p.vy > 0 && p.y + p.h - e.y < 16 + p.vy) return 'stomp';
+    if (p.dash > 0) return 'zap';
+    return 'hurt';
+  };
+  Game.prototype.stepFoes = function () {
+    const p = this.p;
+    for (const f of this.foes) {
+      f.t++;
+      if (Math.abs(f.x - p.x) > 900) continue;
+      if (f.type === 'flyer') {
+        f.x += f.vx * 0.8; if (f.x < f.a || f.x + f.w > f.b) { f.vx = -f.vx; f.x = Math.max(f.a, Math.min(f.b - f.w, f.x)); }
+        f.y = f.base + Math.sin(f.t * 0.05) * 30;
+      } else {
+        f.x += f.vx; if (f.x < f.a || f.x + f.w > f.b) { f.vx = -f.vx; f.x = Math.max(f.a, Math.min(f.b - f.w, f.x)); }
+        if (f.type === 'blinker') {
+          if (f.t % 150 === 130) f.warn = 20;
+          if (f.warn > 0 && --f.warn === 0) { f.x = f.a + ((f.t * 7919) % Math.max(1, f.b - f.a - f.w)); this.ev('blink'); }
+        }
+      }
+      const c = this.contact(f);
+      if (c === 'stomp') { f.gone = true; p.vy = -9.5; p.canDash = true; this.ev('stomp', { x: f.x + 13, y: f.y + 12 }); }
+      else if (c === 'zap') { f.gone = true; this.ev('zap', { x: f.x + 13, y: f.y + 12 }); }
+      else if (c === 'hurt') { this.die('enemy'); return true; }
+    }
+    this.foes = this.foes.filter(f => !f.gone);
+    return false;
+  };
+
+  // ---------- bosses ----------
+  Game.prototype.startBoss = function (Rg, again) {
+    const L = this.L, x0 = Rg.x0 * T, x1 = Rg.x1 * T, F = 16 * T;
+    this.shots = [];
+    this.boss = { kind: L.boss, mode: L.boss === 'final' ? 'bounce' : L.boss, hp: L.bossHp, max: L.bossHp, hard: L.hard, x0: x0 + T, x1: x1 - T, F,
+      x: x1 - 6 * T, y: F - 56, w: 56, h: 56, vx: 0, vy: 0, t: again ? -30 : -90, ph: 0, pt: 0, inv: 0, vuln: false, real: 0, orbs: [], name: L.bossName, down: false };
+    this.setMode(this.boss.mode);
+    this.ev('boss', { name: L.bossName, again: !!again });
+  };
+  Game.prototype.setMode = function (m) {
+    const b = this.boss; b.mode = m; b.ph = 0; b.pt = 0; b.vuln = m === 'bounce' || m === 'race'; b.orbs = []; b.twin = null;
+    const sz = { bounce: [56, 56], leak: [64, 48], loop: [44, 44], race: [40, 48], patch: [48, 64] }[m];
+    const cx = b.x + b.w / 2; b.w = sz[0]; b.h = sz[1]; b.x = Math.max(b.x0, Math.min(b.x1 - b.w, cx - b.w / 2));
+    if (m !== 'leak' && m !== 'loop') b.y = b.F - b.h;
+    b.vx = 0; b.vy = 0; b.real = 0;
+  };
+  Game.prototype.stepBoss = function (inp) {
+    const b = this.boss, p = this.p, F = b.F, hard = b.hard;
+    if (b.down) return false;
+    b.t++; if (b.inv > 0) b.inv--; if (b.safe > 0) b.safe--;
+    if (b.t < 0) return false; // intro pause
+    b.pt++;
+    const mid = (b.x0 + b.x1) / 2, span = (b.x1 - b.x0) / 2 - 40;
+    const pc = p.x + p.w / 2;
+    let bodies = [b];
+    if (b.mode === 'bounce') {
+      const onG = b.y + b.h >= F;
+      if (onG) {
+        b.vx *= 0.8;
+        if (b.pt > (hard ? 50 : 72)) { b.pt = 0; b.vy = hard ? -13.5 : -12.5; b.vx = Math.max(-5.5, Math.min(5.5, (pc - (b.x + b.w / 2)) / 42)); }
+      }
+      b.vy += 0.5; b.x += b.vx; b.y += b.vy;
+      if (b.y + b.h >= F) { if (b.vy > 4) this.ev('quake'); b.y = F - b.h; b.vy = 0; }
+      if (b.x < b.x0) { b.x = b.x0; b.vx = -b.vx; } if (b.x + b.w > b.x1) { b.x = b.x1 - b.w; b.vx = -b.vx; }
+    } else if (b.mode === 'leak') {
+      if (b.ph === 0) { // hover and drip
+        b.x = mid + Math.sin(b.pt * 0.02) * span - b.w / 2; b.y += (5 * T - b.y) * 0.08;
+        if (b.pt % (hard ? 28 : 40) === 0) this.shots.push({ x: b.x + b.w / 2 - 5, y: b.y + b.h, w: 10, h: 14, vx: 0, vy: 2, g: 0.25, kind: 'drip' });
+        if (b.pt > (hard ? 300 : 240)) { b.ph = 1; b.pt = 0; }
+      } else { // sag to the floor, glowing
+        b.y = Math.min(F - b.h, b.y + 6); b.vuln = b.y >= F - b.h - 1;
+        if (b.pt > 120) { b.ph = 0; b.pt = 0; b.vuln = false; }
+      }
+    } else if (b.mode === 'loop') {
+      const n = hard ? 4 : 3;
+      if (b.ph === 0) {
+        const tt = b.pt;
+        b.x = mid + Math.sin(tt * 0.013) * span * 0.85 - b.w / 2; b.y = 6 * T + Math.sin(tt * 0.026) * 1.6 * T;
+        b.orbs = []; for (let k = 0; k < n; k++) { const a = tt * (hard ? 0.06 : 0.05) + k * 6.283 / n; b.orbs.push({ x: b.x + b.w / 2 + Math.cos(a) * 82 - 9, y: b.y + b.h / 2 + Math.sin(a) * 82 - 9, w: 18, h: 18 }); }
+        if (b.pt > (hard ? 300 : 260)) { b.ph = 1; b.pt = 0; b.orbs = []; b.tx = Math.max(b.x0, Math.min(b.x1 - b.w, pc - b.w / 2 + (pc < mid ? 90 : -90))); this.ev('lag'); }
+      } else { // lags: drops near you and freezes
+        b.y = Math.min(F - b.h, b.y + 7); b.vuln = b.y >= F - b.h - 1;
+        if (b.y < F - b.h) b.x += (b.tx - b.x) * 0.1;
+        if (b.pt > 150) { b.ph = 0; b.pt = 0; b.vuln = false; }
+      }
+    } else if (b.mode === 'race') {
+      if (!b.vx) b.vx = hard ? 3.4 : 2.6;
+      b.x += b.vx; if (b.x < b.x0 + 2 * T) { b.x = b.x0 + 2 * T; b.vx = -b.vx; } if (b.x + b.w > b.x1 - 2 * T) { b.x = b.x1 - 2 * T - b.w; b.vx = -b.vx; }
+      if (b.y + b.h >= F && b.pt % 110 === 0) b.vy = -10;
+      b.vy += 0.5; b.y += b.vy; if (b.y + b.h >= F) { b.y = F - b.h; b.vy = 0; }
+      b.twin = { x: b.x0 + b.x1 - b.x - b.w, y: b.y, w: b.w, h: b.h, twin: true };
+      bodies = [b, b.twin];
+    } else if (b.mode === 'patch') {
+      const side = b.x + b.w / 2 < mid ? -1 : 1;
+      if (b.ph === 0) { // shoot patches, low then high
+        b.vuln = false;
+        if (b.pt % 36 === 0 && b.pt > 0) { const high = (b.pt / 36) % 2 === 0; this.shots.push({ x: b.x + (side > 0 ? -16 : b.w), y: high ? F - 92 : F - 24, w: 16, h: 12, vx: -side * (hard ? 5 : 4.2), vy: 0, g: 0, kind: 'patch' }); }
+        if (b.pt > 36 * (hard ? 5 : 4) + 30) { b.ph = 1; b.pt = 0; b.vx = -side * (hard ? 7.5 : 6); this.ev('charge'); }
+      } else if (b.ph === 1) { // charge across
+        b.x += b.vx;
+        if (b.x < b.x0 || b.x + b.w > b.x1) { b.x = Math.max(b.x0, Math.min(b.x1 - b.w, b.x)); b.vx = 0; b.ph = 2; b.pt = 0; this.ev('quake'); }
+      } else { b.vuln = true; if (b.pt > 160) { b.ph = 0; b.pt = 0; b.vuln = false; } }
+    }
+    for (const s of this.shots) { s.vy += s.g || 0; s.x += s.vx; s.y += s.vy; if (s.y + s.h >= F || s.x < b.x0 - 40 || s.x > b.x1 + 40) s.gone = true; }
+    this.shots = this.shots.filter(s => !s.gone);
+    for (const s of this.shots.concat(b.orbs)) if (over(p, s)) { this.die('boss'); return true; }
+    for (const body of bodies) {
+      const c = this.contact(body);
+      if (!c) continue;
+      const fake = b.mode === 'race' && (body.twin ? b.real === 0 : b.real === 1);
+      if (c === 'stomp' || c === 'zap') {
+        b.safe = 40;
+        if (c === 'stomp') { p.vy = -10.5; p.canDash = true; } else { p.dash = 0; p.vx = (pc < body.x + body.w / 2 ? -1 : 1) * 7; p.lock = 12; }
+        if (fake) { if (b.inv === 0) { this.ev('fake'); b.real = 1 - b.real; b.inv = 30; } continue; }
+        if (b.vuln && b.inv === 0) this.hitBoss();
+      } else if (!b.safe) { this.die('boss'); return true; }
+    }
+    return false;
+  };
+  Game.prototype.hitBoss = function () {
+    const b = this.boss; b.hp--; b.inv = 70; this.ev('bosshit', { hp: b.hp, x: b.x + b.w / 2, y: b.y });
+    if (b.hp <= 0) {
+      b.down = true; this.shots = []; b.orbs = []; b.twin = null;
+      const Rg = this.L.regions[this.L.regions.length - 1];
+      this.grid[15][Rg.x1 - 3] = 'E';
+      this.ev('bossdown', { name: b.name, x: b.x + b.w / 2, y: b.y + b.h / 2 });
+      return;
+    }
+    if (b.kind === 'final') { const order = ['leak', 'loop', 'race', 'patch', 'bounce']; this.setMode(order[(b.max - b.hp - 1) % 5]); this.ev('phase', { mode: b.mode }); }
+    else if (b.mode === 'leak' || b.mode === 'loop' || b.mode === 'patch') { b.ph = 0; b.pt = 0; b.vuln = false; }
+    else if (b.mode === 'race') b.real = (b.hp % 2);
   };
 
   Game.prototype.ledge = function (dir) {
@@ -544,5 +730,5 @@
     }
   };
 
-  root.PN = { Game, LEVELS, GLITCHES, liveFor, T, generate, ROOMS, FINALE, seed: () => seedNow };
+  root.PN = { Game, LEVELS, GLITCHES, liveFor, T, generate, ROOMS, FINALE, BOSS_NAME, seed: () => seedNow };
 })(typeof window !== 'undefined' ? window : globalThis);

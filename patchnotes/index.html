@@ -148,8 +148,67 @@
   const SFX = {
     jump: () => beep(300, 620, 0.12), dash: () => beep(900, 200, 0.14, 'sawtooth', 0.05), key: () => { beep(880, 1400, 0.1); setTimeout(() => beep(1200, 1800, 0.12), 70); },
     door: () => beep(200, 90, 0.3, 'triangle', 0.1), die: () => beep(400, 50, 0.45, 'sawtooth', 0.07), exit: () => { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => beep(f, f, 0.14, 'square', 0.05), i * 90)); },
+    stomp: () => beep(500, 120, 0.12, 'square', 0.07), hit: () => { beep(160, 40, 0.3, 'sawtooth', 0.1); beep(1200, 300, 0.2, 'square', 0.05); },
+    thud: () => beep(90, 40, 0.2, 'triangle', 0.12), blip: () => beep(1500, 700, 0.05, 'square', 0.04),
     glitch: () => { for (let i = 0; i < 6; i++) setTimeout(() => beep(100 + Math.random() * 1800, 60 + Math.random() * 900, 0.06, i % 2 ? 'sawtooth' : 'square', 0.05), i * 35); }
   };
+  // ---------- music: a tiny chiptune sequencer ----------
+  const Music = (() => {
+    const N = n => 440 * Math.pow(2, (n - 69) / 12);
+    // 16th-note steps. 0 = rest. Lead / bass in MIDI notes.
+    const SONGS = {
+      main: { bpm: 132, lead: [76, 0, 79, 0, 81, 0, 79, 76, 0, 74, 76, 0, 72, 0, 74, 0, 76, 0, 79, 0, 83, 0, 81, 79, 0, 76, 74, 0, 76, 0, 0, 0,
+                               72, 0, 76, 0, 79, 0, 76, 72, 0, 71, 72, 0, 74, 0, 71, 0, 69, 0, 72, 0, 76, 0, 74, 72, 0, 71, 69, 0, 71, 0, 0, 0],
+              bass: [45, 0, 45, 57, 45, 0, 45, 57, 41, 0, 41, 53, 41, 0, 41, 53, 43, 0, 43, 55, 43, 0, 43, 55, 40, 0, 40, 52, 44, 0, 44, 56],
+              glitch: 0.02 },
+      boss: { bpm: 158, lead: [69, 72, 76, 72, 69, 72, 77, 72, 68, 71, 76, 71, 68, 71, 77, 76, 69, 72, 76, 81, 80, 76, 72, 69, 70, 74, 77, 74, 71, 74, 80, 83],
+              bass: [33, 33, 45, 33, 33, 45, 33, 44, 32, 32, 44, 32, 32, 44, 32, 43, 33, 33, 45, 33, 33, 45, 33, 44, 34, 34, 46, 34, 35, 35, 47, 47],
+              glitch: 0.12 } };
+    let cur = null, step = 0, next = 0, timer = null, out = null;
+    function note(f, t, d, type, v) {
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = type; o.frequency.setValueAtTime(f, t);
+      g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      o.connect(g); g.connect(out); o.start(t); o.stop(t + d + 0.02);
+    }
+    function hat(t, v) {
+      const len = 0.03, b = ac.createBuffer(1, Math.floor(ac.sampleRate * len), ac.sampleRate), d = b.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const s = ac.createBufferSource(), g = ac.createGain(); s.buffer = b; g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      s.connect(g); g.connect(out); s.start(t);
+    }
+    function tick() {
+      if (!ac || !cur) return;
+      const S = SONGS[cur], dt = 60 / S.bpm / 4;
+      while (next < ac.currentTime + 0.12) {
+        let i = step;
+        if (Math.random() < S.glitch) i = Math.max(0, step - 1 - Math.floor(Math.random() * 3)); // stutter: replay a step, like a skipping save file
+        const ln = S.lead[i % S.lead.length], bs = S.bass[i % S.bass.length];
+        const bend = Math.random() < S.glitch / 2 ? (Math.random() < 0.5 ? 0.5 : 2) : 1;
+        if (ln) note(N(ln) * bend, next, dt * 1.6, 'square', 0.035);
+        if (bs) note(N(bs), next, dt * 0.9, 'triangle', 0.09);
+        if (i % 2 === 0) hat(next, i % 4 === 0 ? 0.05 : 0.025);
+        if (cur === 'boss' && i % 4 === 0) note(60, next, 0.12, 'sine', 0.18);
+        next += dt; step++;
+      }
+    }
+    return {
+      play(name) {
+        if (!save.music || !ac) { cur = null; return; }
+        if (!out) { out = ac.createGain(); out.gain.value = 0.7; out.connect(ac.destination); }
+        if (cur === name) return;
+        cur = name; step = 0; next = ac.currentTime + 0.05;
+        if (!timer) timer = setInterval(tick, 30);
+      },
+      stop() { cur = null; },
+      get on() { return !!cur; }
+    };
+  })();
+  if (save.music == null) save.music = true;
+  const musicLabel = () => save.music ? '♪ Music: on' : '♪ Music: off';
+  function bindMusic() { bind('bMus', () => { save.music = !save.music; persist(); const b = document.getElementById('bMus'); if (b) b.textContent = musicLabel(); if (save.music) { audioInit(); Music.play(G.boss && !G.boss.down && state !== 'title' ? 'boss' : 'main'); } else Music.stop(); }); }
+  addEventListener('pointerdown', () => { if (save.music && !Music.on) Music.play(G.boss && !G.boss.down ? 'boss' : 'main'); });
+  addEventListener('keydown', () => { if (save.music && !Music.on) Music.play(G.boss && !G.boss.down ? 'boss' : 'main'); });
   const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
 
   // ---------- game state ----------
@@ -157,7 +216,7 @@
   let state = 'title', lvl = 0, time = 0, deaths = 0, fx = 0, banner = null, toast = null, camX = 0, camY = 0, shake = 0, trail = [], parts = [];
 
   function startLevel(i) {
-    lvl = i; G.load(i); time = 0; deaths = 0; trail = []; parts = []; banner = null; toast = null;
+    lvl = i; G.load(i); Music.play('main'); time = 0; deaths = 0; trail = []; parts = []; banner = null; toast = null;
     camX = null; showIntro();
   }
 
@@ -189,12 +248,13 @@
       </div>
       <p class="muted" style="text-align:center">Your levels are randomly made just for you · set #${seedTag()}</p>
       <p class="muted" style="text-align:center">🐞 Hidden bugs found: ${bugCount()} / ${LEVELS.length}</p>
+      <div class="row"><button class="btn ghost" id="bMus">${musicLabel()}</button></div>
       ${controlsHelp()}
       ${IN_APP ? '' : '<div class="row"><a class="btn ghost" href="../games/index.html">← Games &amp; Apps</a></div>'}
       <p class="muted" style="text-align:center;margin-top:12px">A Buggy Games YT game</p>`);
     bind('bCont', () => startLevel(Math.min(save.unlocked, LEVELS.length - 1)));
     bind('bNew', () => startLevel(0));
-    bind('bLv', showLevels);
+    bind('bLv', showLevels); bindMusic();
   }
 
   function showLevels() {
@@ -205,7 +265,7 @@
     bind('bSeed', () => {
       openModal(`<h2>New random set?</h2><p>This makes a brand new set of 100 levels and resets your progress, times and bugs.</p>
         <div class="row"><button class="btn green" id="bYes">Shuffle</button><button class="btn ghost" id="bNo" data-default>Cancel</button></div>`);
-      bind('bYes', () => { save = { seed: newSeed(), unlocked: 0, best: {}, bugs: {} }; generate(save.seed); persist(); showTitle(); });
+      bind('bYes', () => { save = { seed: newSeed(), unlocked: 0, best: {}, bugs: {}, music: save.music }; generate(save.seed); persist(); showTitle(); });
       bind('bNo', showLevels);
     });
     card.querySelectorAll('[data-l]').forEach(b => b.onclick = () => startLevel(+b.dataset.l));
@@ -219,7 +279,7 @@
       <p class="muted">${final ? 'FINAL LEVEL' : 'LEVEL ' + (lvl + 1) + ' / ' + (LEVELS.length - 1)} · build v${verOf(lvl)}</p>
       <h2>${esc(L.name)}</h2>
       <p class="muted">${L.puzzles === 1 ? '1 glitch puzzle' : L.puzzles + ' glitch puzzles'} in one long level · ${L.w} tiles wide. Checkpoint at each puzzle.</p>
-      <div class="issue"><b>Puzzle 1${L.puzzles > 1 ? ' of ' + L.puzzles : ''}, known issue:</b> ${esc(hintOf(L.regions[1]))}</div>${L.puzzles > 1 ? '<p class="muted">Pause anytime to read the known issue for the puzzle you are on.</p>' : ''}
+      <div class="issue"><b>Puzzle 1${L.puzzles > 1 ? ' of ' + L.puzzles : ''}, known issue:</b> ${esc(hintOf(L.regions[1]))}</div>${L.puzzles > 1 ? '<p class="muted">Pause anytime to read the known issue for the puzzle you are on.</p>' : ''}${L.boss ? `<p style="color:#ff3b6b"><b>⚠ BOSS AT THE END: ${esc(L.bossName)}</b></p>` : ''}
       <p class="muted">Glitches in this build:</p>${glitchChips(liveFor(lvl))}
       <p class="muted">${save.bugs[lvl] ? '🐞 Hidden bug found' : '🐞 A hidden bug is in this level. It only shows up for a few seconds after you pause.'}${save.best[lvl] ? ' · best ' + fmt(save.best[lvl]) : ''}</p>
       ${lvl === 0 ? controlsHelp() : ''}
@@ -234,10 +294,11 @@
     state = 'paused';
     const L = LEVELS[lvl];
     openModal(`<h2>Paused</h2><p class="muted">${esc(L.name)} · build v${verOf(lvl)} · deaths ${deaths}</p>
-      ${(() => { const rg = L.regions; let k = G.reg; while (k < rg.length - 1 && (rg[k].room < 0 || G.cleared.has(k))) k++; const Rg = rg[k]; return `<div class="issue"><b>Puzzle ${Rg.room + 1} of ${L.puzzles}, known issue:</b> ${esc(hintOf(Rg))}</div>`; })()}
+      ${(() => { const rg = L.regions; let k = G.reg; while (k < rg.length - 1 && (rg[k].room < 0 || G.cleared.has(k))) k++; const Rg = rg[k]; return Rg.boss ? `<div class="issue"><b>Boss: ${esc(L.bossName)}.</b> ${esc(hintOf(Rg))}</div>` : `<div class="issue"><b>Puzzle ${Rg.room + 1} of ${L.puzzles}, known issue:</b> ${esc(hintOf(Rg))}</div>`; })()}
       <p class="muted">Glitches in this build:</p>${glitchChips(liveFor(lvl))}
+      <div class="row"><button class="btn ghost" id="bMus">${musicLabel()}</button></div>
       <div class="row"><button class="btn green" id="bRes" data-default>Resume</button><button class="btn ghost" id="bRe">Restart</button><button class="btn ghost" id="bQ">Menu</button></div>`);
-    bind('bRes', doResume);
+    bind('bRes', doResume); bindMusic();
     bind('bRe', () => { closeModal(); G.respawn(); trail = []; state = 'play'; showControls(); });
     bind('bQ', showTitle);
   }
@@ -308,6 +369,16 @@
       else if (e.type === 'door') { SFX.door(); toast = { text: 'Door unlocked', t: 70 }; }
       else if (e.type === 'toast') toast = { text: e.text, t: 120 };
       else if (e.type === 'die') { deaths++; SFX.die(); buzz(60); shake = 10; burst(G.p.x + 10, G.p.y + 14, 26); }
+      else if (e.type === 'stomp' || e.type === 'zap') { SFX.stomp(); burst(e.x, e.y, 16); shake = 4; buzz(15); }
+      else if (e.type === 'blink') SFX.blip();
+      else if (e.type === 'boss') { banner = { text: '⚠ ' + e.name + ' ⚠', t: 150, g: 'boss' }; fx = 40; shake = 10; SFX.glitch(); buzz([40, 40, 40]); Music.play('boss'); if (!e.again) toast = { text: 'BOSS FIGHT. Pause for a tip.', t: 150 }; }
+      else if (e.type === 'bosshit') { SFX.hit(); fx = 18; shake = 12; buzz(40); burst(e.x, e.y + 20, 30); toast = { text: e.hp > 0 ? 'HIT! ' + e.hp + ' to go' : 'CRITICAL ERROR', t: 80 }; }
+      else if (e.type === 'bossdown') { fx = 60; shake = 18; buzz([60, 40, 120]); SFX.glitch(); setTimeout(SFX.exit, 300); for (let i = 0; i < 4; i++) burst(e.x, e.y, 30); banner = { text: e.name + ' HAS STOPPED RESPONDING', t: 200, g: 'boss' }; toast = { text: 'The exit is open →', t: 200 }; Music.play('main'); }
+      else if (e.type === 'quake') { shake = Math.max(shake, 7); SFX.thud(); }
+      else if (e.type === 'fake') { SFX.blip(); toast = { text: 'WRONG THREAD. That one was a copy.', t: 90 }; fx = 10; }
+      else if (e.type === 'lag') { toast = { text: 'IT IS LAGGING. HIT IT!', t: 90 }; fx = 12; }
+      else if (e.type === 'charge') SFX.dash();
+      else if (e.type === 'phase') { fx = 30; toast = { text: 'GOLD_MASTER.EXE loaded a new bug', t: 100 }; SFX.glitch(); }
       else if (e.type === 'exit') { SFX.exit(); setTimeout(showNotes, 450); }
     }
   }
@@ -385,6 +456,8 @@
       cx.beginPath(); cx.moveTo(k.x + 3, k.y + 3); cx.lineTo(k.x + k.w - 3, k.y + k.h - 3); cx.moveTo(k.x + k.w - 3, k.y + 3); cx.lineTo(k.x + 3, k.y + k.h - 3); cx.stroke();
     }
 
+    drawFoes(); drawBoss();
+
     // trail
     for (const t of trail) { cx.globalAlpha = t.t / 24; cx.fillStyle = hsl((gt * 12 + t.t * 25) % 360, 100, 60); cx.fillRect(t.x, t.y, p.w, p.h); }
     cx.globalAlpha = 1;
@@ -401,6 +474,7 @@
     cx.textAlign = 'right'; cx.fillStyle = '#9a92c9'; cx.font = '12px ui-monospace, Menlo, Consolas, monospace';
     cx.fillText('build v' + verOf(lvl), VW - 12, VH - 20);
 
+    if (G.boss && !G.boss.down && G.boss.t > -60) drawBossBar(G.boss);
     if (banner) {
       const a = Math.min(1, banner.t / 20);
       cx.textAlign = 'center'; cx.font = 'bold 28px ui-monospace, Menlo, Consolas, monospace';
@@ -488,6 +562,78 @@
     }
   }
 
+  function drawFoes() {
+    for (const f of G.foes) {
+      if (f.x < camX - 60 || f.x > camX + VW + 60) continue;
+      const x = f.x, y = f.y, j = Math.random() < 0.06 ? (Math.random() - 0.5) * 8 : 0;
+      if (f.type === 'flyer') {
+        const flap = Math.sin(gt * 0.4) * 8;
+        cx.fillStyle = 'rgba(255,0,64,0.5)'; cx.fillRect(x + 2 + j, y + 6, 22, 12);
+        cx.fillStyle = '#00e5ff'; cx.beginPath(); cx.moveTo(x + 13, y + 4); cx.lineTo(x + 24, y + 12); cx.lineTo(x + 13, y + 20); cx.lineTo(x + 2, y + 12); cx.fill();
+        cx.fillStyle = '#7ff3ff'; cx.fillRect(x - 6, y + 8 - flap / 2, 8, 4); cx.fillRect(x + 24, y + 8 - flap / 2, 8, 4);
+        cx.fillStyle = '#05030c'; cx.fillRect(x + 9, y + 10, 3, 3); cx.fillRect(x + 15, y + 10, 3, 3);
+      } else {
+        const warn = f.type === 'blinker' && f.warn > 0;
+        if (warn && gt % 4 < 2) continue;
+        const col = f.type === 'blinker' ? '#ffd23f' : '#ff00dc';
+        cx.fillStyle = 'rgba(0,229,255,0.45)'; cx.fillRect(x + 3 + j, y + 2, f.w, f.h - 6);
+        cx.fillStyle = col; cx.fillRect(x + j, y + 2, f.w, f.h - 8);
+        if (f.type === 'blinker') for (let k = 0; k < 6; k++) { cx.fillStyle = Math.random() < 0.5 ? '#fff' : '#000'; cx.fillRect(x + Math.random() * 22, y + 2 + Math.random() * 12, 4, 4); }
+        const leg = Math.floor(gt / 6) % 2 ? 3 : 0;
+        cx.fillStyle = col; cx.fillRect(x + 2, y + f.h - 6, 4, 6 - leg); cx.fillRect(x + 11, y + f.h - 6, 4, 3 + leg); cx.fillRect(x + 20, y + f.h - 6, 4, 6 - leg);
+        cx.fillStyle = '#05030c'; const ex = f.vx > 0 ? 14 : 4; cx.fillRect(x + ex, y + 7, 4, 4); cx.fillRect(x + ex + 6, y + 7, 4, 4);
+        cx.fillStyle = '#fff'; cx.font = 'bold 9px ui-monospace, monospace'; cx.textAlign = 'center'; if (Math.random() < 0.02) cx.fillText(Math.random() < 0.5 ? 'NaN' : 'null', x + 13, y - 4);
+      }
+    }
+  }
+  function glitchRect(x, y, w, h, col, strong) {
+    // RGB split + sliced offsets: the boss never renders right
+    const k = strong ? 6 : 3;
+    cx.fillStyle = 'rgba(255,0,64,0.55)'; cx.fillRect(x - k, y, w, h);
+    cx.fillStyle = 'rgba(0,229,255,0.55)'; cx.fillRect(x + k, y, w, h);
+    const slices = 6;
+    for (let i = 0; i < slices; i++) {
+      const sy = y + i * h / slices, off = Math.random() < (strong ? 0.4 : 0.15) ? (Math.random() - 0.5) * 18 : 0;
+      cx.fillStyle = col; cx.fillRect(x + off, sy, w, h / slices + 0.5);
+    }
+  }
+  function drawBossBody(b, body, real) {
+    const x = body.x, y = body.y, w = body.w, h = body.h, hurt = b.inv > 0 && gt % 6 < 3;
+    const glow = b.vuln && !b.down;
+    if (glow) { cx.fillStyle = `rgba(255,210,63,${0.25 + Math.sin(gt * 0.3) * 0.15})`; cx.fillRect(x - 8, y - 8, w + 16, h + 16); }
+    const col = hurt ? '#ffffff' : { bounce: '#ff3b6b', leak: '#39ff88', loop: '#b026ff', race: '#00e5ff', patch: '#ff8a00' }[b.mode];
+    glitchRect(x, y, w, h, col, glow || hurt);
+    // face
+    cx.fillStyle = '#05030c';
+    const e = Math.max(5, w / 8);
+    cx.fillRect(x + w * 0.22, y + h * 0.28, e, e * (Math.random() < 0.05 ? 0.2 : 1)); cx.fillRect(x + w * 0.62, y + h * 0.28, e, e);
+    cx.fillRect(x + w * 0.25, y + h * 0.62, w * 0.5, 4);
+    if (b.mode === 'patch') { cx.fillStyle = '#fff'; cx.font = 'bold 10px ui-monospace, monospace'; cx.textAlign = 'center'; cx.fillText(b.ph === 2 ? '@_@' : 'v9.0', x + w / 2, y - 6); }
+    if (b.mode === 'leak') { cx.fillStyle = '#39ff88'; for (let i = 0; i < 3; i++) cx.fillRect(x + 8 + i * 22, y + h, 4, 4 + ((gt + i * 9) % 14)); }
+    if (b.mode === 'race' && real) { cx.strokeStyle = '#ffd23f'; cx.lineWidth = 3; cx.strokeRect(x - 3, y - 3, w + 6, h + 6); }
+    if (b.mode === 'loop' && b.ph === 1) { cx.fillStyle = '#fff'; cx.font = 'bold 11px ui-monospace, monospace'; cx.textAlign = 'center'; cx.fillText('NOT RESPONDING', x + w / 2, y - 8); }
+  }
+  function drawBoss() {
+    const b = G.boss; if (!b || b.down) return;
+    if (b.t < 0 && gt % 8 < 4) return; // intro flicker
+    drawBossBody(b, b, b.real === 0);
+    if (b.twin) { cx.globalAlpha = 0.92; drawBossBody(b, b.twin, b.real === 1); cx.globalAlpha = 1; }
+    for (const o of b.orbs) { cx.fillStyle = hsl((gt * 8) % 360, 100, 60); cx.fillRect(o.x, o.y, o.w, o.h); cx.fillStyle = '#05030c'; cx.fillRect(o.x + 6, o.y + 6, 6, 6); }
+    for (const s of G.shots) {
+      if (s.kind === 'drip') { cx.fillStyle = '#39ff88'; cx.fillRect(s.x, s.y, s.w, s.h); cx.fillStyle = '#b6ffd3'; cx.fillRect(s.x + 3, s.y + 2, 3, 5); }
+      else { cx.fillStyle = '#ff8a00'; cx.fillRect(s.x, s.y, s.w, s.h); cx.fillStyle = '#05030c'; cx.font = 'bold 8px ui-monospace, monospace'; cx.textAlign = 'center'; cx.fillText('fix', s.x + 8, s.y + 9); }
+    }
+  }
+  function drawBossBar(b) {
+    const w = 360, x = VW / 2 - w / 2, y = VH - 44;
+    cx.fillStyle = 'rgba(10,8,20,0.8)'; cx.fillRect(x - 8, y - 22, w + 16, 40);
+    cx.textAlign = 'center'; cx.textBaseline = 'top'; cx.font = 'bold 13px ui-monospace, Menlo, Consolas, monospace';
+    const jx = Math.random() < 0.1 ? (Math.random() - 0.5) * 10 : 0;
+    cx.fillStyle = '#ff0040'; cx.fillText(b.name, VW / 2 - 2 + jx, y - 18); cx.fillStyle = '#fff'; cx.fillText(b.name, VW / 2 + jx, y - 18);
+    cx.fillStyle = '#2a1f4d'; cx.fillRect(x, y, w, 10);
+    const seg = w / b.max;
+    for (let i = 0; i < b.hp; i++) { cx.fillStyle = Math.random() < 0.05 ? '#fff' : '#ff3b6b'; cx.fillRect(x + i * seg + 1, y + 1, seg - 2, 8); }
+  }
   function drawPlayer(p) {
     const x = p.x, y = p.y, w = p.w, h = p.h;
     const tpose = p.launched && p.vy < 2;
