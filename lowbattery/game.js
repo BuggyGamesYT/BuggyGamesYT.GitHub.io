@@ -38,6 +38,7 @@ const blocksLight = (x, y) => { x = Math.floor(x); y = Math.floor(y); if (x < 0 
 const START = { x: 2.5, y: 21.5 };
 const FUSES0 = [{ x: 19.5, y: 1.5, area: 'garage' }, { x: 44.5, y: 2.5, area: 'back office' }, { x: 30.8, y: 17.6, area: 'tunnel' }];
 const CHARGERS = [{ x: 1.5, y: 11.5 }, { x: 24.5, y: 9.5 }, { x: 27.5, y: 26.5 }];
+const ZSPAWN = [[17.5, 11.5], [7.5, 2.5], [27.5, 12.5], [42.5, 9.5], [33.5, 2.5], [24.5, 28.5], [36.5, 31.5], [42.5, 22.5]];
 const BOX = { x: 12.6, y: 22.4 };
 const NOTES0 = [
   { x: 7.5, y: 11.5, text: "NIGHT LOG, DRIVER 7\n\nThe depot power dies around 1 a.m. every night.\nKeep your phone charged.\nIt doesn't come near a full battery." },
@@ -197,7 +198,8 @@ function newGame() {
     d: { x: 36.5, y: 6, tx: 36.5, ty: 6, path: [], repath: 0, burn: 0, state: 'wander', stun: 0, eyesBlink: 0 },
     t: 0, msg: '', msgT: 0, msgC: '#ddd', shake: 0, hurt: 0, flick: 1, flickT: 0,
     whisperT: 18, charging: false, wasCharging: false, caughtCount: 0, still: 0, step: 0, hidden: false,
-    objective: 'Find a way out.', ended: false
+    objective: 'Find a way out.', ended: false,
+    zombies: ZSPAWN.map(([x, y]) => ({ x, y, path: [], repath: Math.random(), state: 'wander', groan: 2 + Math.random() * 5, ph: Math.random() * 6, stun: 0 }))
   };
   showMsg('Where... is everyone?', 3);
   setTimeout(() => S && showMsg(S.sim ? "Can't read your real battery here. Using the phone's own battery." : 'Your light runs on your real battery: ' + pct() + '%.', 4), 3200);
@@ -314,6 +316,8 @@ function update(dt) {
   // whisper while charging
   if (S.charging) { S.whisperT -= dt; if (S.whisperT <= 0) { S.whisperT = 16 + Math.random() * 10; whisper(pct()); } }
   updateDimmer(dt);
+  if (mode !== 'play') return;
+  updateZombies(dt);
   if (S.msgT > 0) S.msgT -= dt;
   if (S.shake > 0) S.shake -= dt; if (S.hurt > 0) S.hurt -= dt;
 }
@@ -368,13 +372,47 @@ function updateDimmer(dt) {
   if (dist < 0.55) caught();
 }
 
-function caught() {
+function updateZombies(dt) {
+  const lightOut = S.lightOn && !S.hidden && beam() > 0.02;
+  const fuses = S.fuses.filter(f => f.got).length;
+  for (const z of S.zombies) {
+    if (z.stun > 0) { z.stun -= dt; continue; }
+    const dist = Math.hypot(z.x - S.px, z.y - S.py);
+    // zombies are drawn to light and noise, not scared of it
+    let sense = lightOut ? 6 + 4 * beam() : 2.5;
+    if (S.hidden && S.still > 0.8) sense = 1.3;
+    const sees = dist < sense && (dist < 2 || los(z.x, z.y, S.px, S.py));
+    if (sees) { if (z.state !== 'hunt') { z.state = 'hunt'; z.repath = 0; noise(0.5, 0.12 * (1 - dist / 12), 220); } z.lost = 0; }
+    else if (z.state === 'hunt') { z.lost = (z.lost || 0) + dt; if (z.lost > 3) { z.state = 'wander'; z.path = []; } }
+    z.repath -= dt;
+    if (z.repath <= 0 || !z.path.length) {
+      z.repath = 0.8;
+      if (z.state === 'hunt') z.path = bfs(z.x, z.y, S.px, S.py);
+      else if (!z.path.length) {
+        const tx = Math.floor(z.x + (Math.random() - 0.5) * 10), ty = Math.floor(z.y + (Math.random() - 0.5) * 10);
+        if (tx > 0 && ty > 0 && tx < W && ty < H && !solid(tx + 0.5, ty + 0.5) && grid[ty][tx] !== 4) z.path = bfs(z.x, z.y, tx + 0.5, ty + 0.5).slice(0, 12);
+      }
+    }
+    const spd = (z.state === 'hunt' ? 1.15 + fuses * 0.12 : 0.55) * (0.85 + 0.15 * Math.sin(S.t * 3 + z.ph));
+    if (z.path.length) {
+      const n = z.path[0], dx = n.x - z.x, dy = n.y - z.y, m = Math.hypot(dx, dy);
+      if (m < 0.08) z.path.shift(); else { const st = Math.min(m, spd * dt); z.x += dx / m * st; z.y += dy / m * st; }
+    }
+    z.groan -= dt;
+    if (z.groan <= 0) { z.groan = 4 + Math.random() * 6; if (dist < 9) { blip(90 + Math.random() * 40, 0.7, 'sawtooth', 0.12 * (1 - dist / 9), 0.6); } }
+    if (dist < 0.5) { caught(true); return; }
+  }
+}
+
+function caught(byZombie) {
   S.caughtCount++; S.hurt = 1.2; S.shake = 0.6;
   noise(0.9, 0.5, 600); blip(90, 0.8, 'sawtooth', 0.3, 0.3);
   try { navigator.vibrate && navigator.vibrate([200, 80, 300]); } catch (e) {}
   if (S.sim) S.simLevel = Math.max(0.01, S.simLevel - 0.08);
   S.px = S.ck.x; S.py = S.ck.y;
   const s = randomDarkSpot(14); S.d.x = s.x; S.d.y = s.y; S.d.path = []; S.d.state = 'wander'; S.d.stun = 3;
+  for (const z of S.zombies) if (Math.hypot(z.x - S.px, z.y - S.py) < 7) { const s2 = randomDarkSpot(10); z.x = s2.x; z.y = s2.y; z.path = []; z.state = 'wander'; z.stun = 2; }
+  if (byZombie) { showMsg(['A zombie grabbed you. You broke free and ran.', 'They follow the light...', 'Teeth. So many teeth.'][Math.min(2, S.caughtCount - 1)], 3.5, '#d55'); return; }
   showMsg(['It touched you. You woke up somewhere else.', 'Again. It was so cold.', 'It knows your face now.'][Math.min(2, S.caughtCount - 1)], 3.5, '#d55');
 }
 
@@ -440,6 +478,15 @@ function render() {
   c.fillStyle = '#050505';
   c.beginPath(); c.ellipse(DX, DY, TS * (0.36 + wob), TS * (0.48 - wob), 0, 0, 7); c.fill();
   for (let i = 0; i < 6; i++) { const a = S.t * 2 + i; c.beginPath(); c.arc(DX + Math.cos(a) * TS * 0.4, DY + Math.sin(a * 1.3) * TS * 0.45, TS * 0.12, 0, 7); c.fill(); }
+  // zombies
+  for (const z of S.zombies) {
+    const X = wx(z.x), Y = wy(z.y); if (X < -TS || Y < -TS || X > VW + TS || Y > VH + TS) continue;
+    const sw = Math.sin(S.t * 4 + z.ph) * TS * 0.05;
+    c.fillStyle = '#3d4a33'; c.beginPath(); c.arc(X + sw, Y, TS * 0.27, 0, 7); c.fill();
+    c.fillStyle = '#5d6b46'; c.beginPath(); c.arc(X + sw, Y - TS * 0.04, TS * 0.15, 0, 7); c.fill();
+    c.fillStyle = '#3d4a33'; c.fillRect(X - TS * 0.32, Y - TS * 0.32, TS * 0.1, TS * 0.3); c.fillRect(X + TS * 0.22, Y - TS * 0.32, TS * 0.1, TS * 0.3);
+    c.fillStyle = z.state === 'hunt' ? '#c22' : '#666'; c.fillRect(X + sw - TS * 0.08, Y - TS * 0.08, TS * 0.05, TS * 0.05); c.fillRect(X + sw + TS * 0.03, Y - TS * 0.08, TS * 0.05, TS * 0.05);
+  }
   // player
   { const X = wx(S.px), Y = wy(S.py); c.fillStyle = '#4a5866'; c.beginPath(); c.arc(X, Y, TS * 0.28, 0, 7); c.fill(); c.fillStyle = '#c9a57f'; c.beginPath(); c.arc(X, Y, TS * 0.16, 0, 7); c.fill();
     c.fillStyle = '#ddd'; c.fillRect(X + Math.cos(S.aim) * TS * 0.28 - 3, Y + Math.sin(S.aim) * TS * 0.28 - 3, 6, 6); }
@@ -477,6 +524,7 @@ function render() {
     d.eyesBlink -= 1 / 60; if (d.eyesBlink < -0.15) d.eyesBlink = 1 + Math.random() * 3;
     if (d.eyesBlink > 0) { const a = 0.25 + 0.6 * (1 - dist / 7); c.fillStyle = `rgba(230,230,230,${a})`; c.fillRect(DX - TS * 0.13, DY - TS * 0.1, TS * 0.07, TS * 0.04); c.fillRect(DX + TS * 0.06, DY - TS * 0.1, TS * 0.07, TS * 0.04); }
   }
+  for (const z of S.zombies) if (z.state === 'hunt' && Math.hypot(z.x - S.px, z.y - S.py) < 6) { const X = wx(z.x), Y = wy(z.y); c.fillStyle = 'rgba(200,30,30,.55)'; c.fillRect(X - TS * 0.08, Y - TS * 0.08, TS * 0.05, TS * 0.05); c.fillRect(X + TS * 0.03, Y - TS * 0.08, TS * 0.05, TS * 0.05); }
   if (d.lit) { c.fillStyle = 'rgba(255,255,255,.85)'; c.fillRect(DX - TS * 0.14, DY - TS * 0.12, TS * 0.08, TS * 0.08); c.fillRect(DX + TS * 0.06, DY - TS * 0.12, TS * 0.08, TS * 0.08); }
   // vignette / hurt / static
   if (S.hurt > 0) { c.fillStyle = `rgba(120,0,0,${Math.min(0.6, S.hurt * 0.5)})`; c.fillRect(0, 0, VW, VH); }
