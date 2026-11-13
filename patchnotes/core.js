@@ -274,7 +274,7 @@
 
     // pickups and hazards
     const kc = this.overlapsChar(p, 'K', 2);
-    if (kc) { this.grid[kc.r][kc.c] = '.'; this.keys++; p.keyTimer = 30; this.ev('key'); }
+    if (kc) { this.grid[kc.r][kc.c] = '.'; this.keys++; p.keyTimer = 40; this.ev('key'); }
     const dc = this.overlapsChar({ x: p.x - 3, y: p.y + 2, w: p.w + 6, h: p.h - 4 }, 'D');
     if (dc) {
       if (this.keys >= this.L.need) { this.keys -= this.L.need; this.openDoor(dc.c, dc.r); this.ev('door'); }
