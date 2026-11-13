@@ -83,104 +83,124 @@
   ];
 
 
-  // ---------- Content Update 1.2: generated levels (seeded, always the same) ----------
-  const TOTAL = 100, NBASE = LEVELS.length - 1; // last hand-made level is the finale
-  const baseLive = [];
-  (function () {
-    const live = new Set(START_LIVE);
-    for (let i = 0; i < NBASE; i++) {
-      baseLive.push([...live]);
-      const n = LEVELS[i].notes; (n.patch || []).forEach(g => live.delete(g)); (n.restore || []).forEach(g => live.add(g));
-    }
-  })();
-  for (let i = 0; i < NBASE; i++) LEVELS[i].live = baseLive[i];
-  const FINALE = LEVELS.pop();
-  let seed = 1337;
-  const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
-  const pick = a => a[Math.floor(rnd() * a.length)];
-  const NAMES_A = ['Null', 'Legacy', 'Spaghetti', 'Hotfix', 'Crunch', 'Day One', 'Off By One', 'Race', 'Stack', 'Memory', 'Feature', 'Force Push', 'Cherry Pick', 'Code Freeze', 'Merge', 'Edge', 'Infinite', 'Broken', 'Cursed', 'Unpatched', 'Beta', 'Alpha', 'Nightly', 'Rollback', 'Ghost'];
-  const NAMES_B = ['Pointer', 'Code', 'Overflow', 'Leak', 'Condition', 'Case', 'Loop', 'Branch', 'Build', 'Creep', 'Patch', 'Crash', 'Hitbox', 'Collision', 'Frame', 'Physics', 'Save', 'Spawn', 'Exception', 'Commit'];
+  // ---------- Randomized levels: every player gets their own set of 100, built from a seed ----------
+  // Hand-made glitch rooms are the building blocks; NEEDS lists the glitches each room is built around.
+  const ROOMS = LEVELS.splice(0, LEVELS.length);
+  const FINALE = ROOMS.pop();
+  const NEEDS = [['clip'], ['walljump'], ['dupe'], ['ledge'], ['launch'], ['oob'], ['walljump'], ['clip'], ['dupe'], ['ledge', 'launch'],
+    ['hyper'], ['iframes'], ['deathkey'], ['hyper', 'clip'], ['walljump', 'iframes'], ['dupe', 'deathkey'], ['oob', 'ledge'], ['launch', 'iframes']];
+  ROOMS.forEach((R, i) => { R.live = NEEDS[i]; R.tpl = i; });
+  FINALE.live = ['pauseclip']; FINALE.tpl = 99;
+  const TOTAL = 100;
+  const NAMES_A = ['Null', 'Legacy', 'Spaghetti', 'Hotfix', 'Crunch', 'Day One', 'Off By One', 'Race', 'Stack', 'Memory', 'Feature', 'Force Push', 'Cherry Pick', 'Code Freeze', 'Merge', 'Edge', 'Infinite', 'Broken', 'Cursed', 'Unpatched', 'Beta', 'Alpha', 'Nightly', 'Rollback', 'Ghost', 'Hello', 'Deprecated', 'Async', 'Undefined', 'Zero Day'];
+  const NAMES_B = ['Pointer', 'Code', 'Overflow', 'Leak', 'Condition', 'Case', 'Loop', 'Branch', 'Build', 'Creep', 'Patch', 'Crash', 'Hitbox', 'Collision', 'Frame', 'Physics', 'Save', 'Spawn', 'Exception', 'Commit', 'World', 'Shaft', 'Basement', 'Tunnel', 'Farm'];
   const PATCH_LINE = {
-    clip: ['Thin walls thickened. Again.', 'Speed clipping patched. Walls have been told to try harder.'],
-    walljump: ['Wall jumping removed and the jar has been sealed.', 'Walls are no longer stairs.'],
-    dupe: ['Key duplication fixed. The pause menu is on probation.', 'Keys now have serial numbers.'],
-    ledge: ['Cracked ceilings re-glued.', 'Corners are no longer doors.'],
-    launch: ['Crates de-rocketed.', 'Grabbing crates no longer files a flight plan.'],
+    clip: ['Thin walls thickened. Again.', 'Speed clipping patched. Walls have been told to try harder.', 'Walls are now 400% more wall.'],
+    walljump: ['Wall jumping removed and the jar has been sealed.', 'Walls are no longer stairs.', 'Gravity now applies near walls.'],
+    dupe: ['Key duplication fixed. The pause menu is on probation.', 'Keys now have serial numbers.', 'Keys are counted by two people who do not like each other.'],
+    ledge: ['Cracked ceilings re-glued.', 'Corners are no longer doors.', 'Sent the intern up there with some glue.'],
+    launch: ['Crates de-rocketed.', 'Grabbing crates no longer files a flight plan.', 'NASA has stopped emailing us.'],
     oob: ['Floor under the floor removed. More concrete.', 'The void is closed for maintenance.'],
     hyper: ['Dash momentum nerfed.', 'Jumping now drops your speed like it is hot.'],
     iframes: ['Spikes are spiky again, even mid-dash.', 'Dash invincibility revoked.'],
-    deathkey: ['Dying takes your keys again.', 'Checkpoints no longer remember keys.']
+    deathkey: ['Dying takes your keys again.', 'Checkpoints no longer remember keys.'],
+    pauseclip: ['Removed the pause menu.']
   };
   const ISSUE_LINE = {
     clip: 'thin walls feel thin', walljump: 'walls feel climbable', dupe: 'pausing near keys acts weird', ledge: 'cracked ceilings are cracking',
-    launch: 'crates smell like rocket fuel', oob: 'there is a floor under the floor', hyper: 'dash momentum is back', iframes: 'spikes forget to hurt dashers', deathkey: 'keys survive death'
+    launch: 'crates smell like rocket fuel', oob: 'there is a floor under the floor', hyper: 'dash momentum is back', iframes: 'spikes forget to hurt dashers', deathkey: 'keys survive death', pauseclip: 'the pause menu'
   };
   const FILLER = ['Hired 81 new level designers. None of them talked to each other.', 'Fixed a typo in the credits. Introduced 4 new bugs.', 'QA has been replaced with a rubber duck.', 'Optimized the game. It now crashes 12% faster.',
     'Removed a comment that said "do not remove this comment". Things got worse.', 'Updated the engine. Nobody knows what changed.', 'The intern found the backup branch. We are investigating.',
-    'Added more levels so you stop finding glitches in the old ones.', 'Renamed bugs to "surprise mechanics".', 'Greg is on vacation. Greg wrote this patch on vacation.'];
-  const TEMPLATES = [];
-  for (let i = 0; i < NBASE; i++) TEMPLATES.push(i);
-  let order = [], last = -1;
-  const gen = [];
-  for (let n = 0; gen.length < TOTAL - NBASE - 1; n++) {
-    if (!order.length) { order = TEMPLATES.slice().sort(() => rnd() - 0.5); if (order[0] === last) order.push(order.shift()); }
-    const t = order.shift(); last = t;
-    const B = LEVELS[t], k = gen.length;
-    const pIdx = B.ops.findIndex(o => o[0] === 'P'), P = B.ops[pIdx];
-    const F = P[2] + 1;
-    const A = 9 + Math.min(10, Math.floor(k / 9)) + Math.floor(rnd() * 4);
+    'Shuffled every level so speedrunners stop memorizing them. You are welcome.', 'Renamed bugs to "surprise mechanics".', 'Greg is on vacation. Greg wrote this patch on vacation.',
+    'Level layouts are now randomly generated. Our level designer has been freed.', 'Added more spikes. Spikes are cheap.', 'Rolled back the rollback.', 'Merged 37 branches at once. What could go wrong.',
+    'QA signed off. QA is my cousin.', 'Your copy of the game is unique. So are your bugs.'];
+
+  let seedNow = 0;
+  function rng(seed) { let x = (seed >>> 0) || 1; return () => { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; }; }
+
+  // an obstacle run: spikes, pits, blocks, steps; harder and longer later on
+  function makeRun(rnd, n, F) {
+    const A = 18 + Math.min(52, Math.floor(n * 0.55)) + Math.floor(rnd() * 8);
     const ops = [['#', 0, 0, A, 1], ['#', 0, 0, 1, 17]];
-    const pits = new Set();
-    let x = 4;
-    const obs = [];
-    while (x < A - 3) {
-      const kind = pick(['spike', 'spike', 'block', 'pit', 'tall']);
-      const wdt = kind === 'tall' || kind === 'block' ? 1 : (rnd() < 0.5 ? 1 : 2);
-      if (x + wdt > A - 3) break;
-      obs.push([kind, x, wdt]);
-      if (kind === 'pit') for (let c = x; c < x + wdt; c++) pits.add(c);
-      x += wdt + 4 + Math.floor(rnd() * 3);
+    const ground = new Array(A).fill(F);
+    const bits = [];
+    let x = 5;
+    const kinds = n < 10 ? ['spike', 'block', 'pit'] : ['spike', 'spike', 'block', 'pit', 'pit', 'tall', 'step', 'spikepit'];
+    while (x < A - 5) {
+      const kind = kinds[Math.floor(rnd() * kinds.length)];
+      let w = 1;
+      if (kind === 'spike' || kind === 'pit') w = 1 + (rnd() < Math.min(0.7, 0.2 + n / 100) ? 1 : 0) + (n > 40 && rnd() < 0.25 ? 1 : 0);
+      if (kind === 'step') w = 3 + Math.floor(rnd() * 3);
+      if (kind === 'spikepit') w = 1;
+      if (x + w > A - 5) break;
+      bits.push([kind, x, w]);
+      x += w + 3 + Math.floor(rnd() * 3) + (kind === 'spikepit' ? 1 : 0);
     }
-    for (let c = 1; c < A; c++) if (!pits.has(c)) ops.push(['#', c, F, 1, 17 - F]);
-    for (const [kind, ox, wdt] of obs) {
-      if (kind === 'spike') ops.push(['^', ox, F - 1, wdt, 1]);
-      else if (kind === 'block') ops.push(['#', ox, F - 1, 1, 1]);
-      else if (kind === 'tall') ops.push(['#', ox, F - 2, 1, 2]);
+    for (const [kind, bx, w] of bits) {
+      if (kind === 'pit') for (let c = bx; c < bx + w; c++) ground[c] = 99;
+      if (kind === 'step') for (let c = bx; c < bx + w; c++) ground[c] = F - 1;
+    }
+    for (let c = 1; c < A; c++) if (ground[c] < 99) ops.push(['#', c, ground[c], 1, 17 - ground[c]]);
+    for (const [kind, bx, w] of bits) {
+      if (kind === 'spike') ops.push(['^', bx, F - 1, w, 1]);
+      else if (kind === 'block') ops.push(['#', bx, F - 1, 1, 1]);
+      else if (kind === 'tall') ops.push(['#', bx, F - 2, 1, 2]);
+      else if (kind === 'spikepit') { ops.push(['.', bx, F, 1, 17 - F]); ops.push(['^', bx + 1, F - 1, 1, 1]); }
     }
     ops.push(['#', A - 1, 0, 1, F - 2]);
     ops.push(['G', A - 2, F - 2, 1, 2]);
     ops.push(['P', 2, F - 1]);
-    const name = NAMES_A[(k * 7 + 3) % NAMES_A.length] + ' ' + NAMES_B[(k * 11 + 5) % NAMES_B.length];
-    gen.push({ name, w: A, h: 17, need: 0, room: B, ops, hint: B.hint, live: baseLive[t], tpl: t, approach: A, floor: F, notes: { ver: '1.2.' + (k + 1) } });
-  }
-  LEVELS.push(...gen, FINALE);
-  // notes for the last hand-made level and every generated level come from what changes next
-  for (let i = NBASE - 1; i < LEVELS.length - 1; i++) {
-    const L = LEVELS[i], cur = new Set(L.live), nxt = new Set(i + 1 === LEVELS.length - 1 ? [] : LEVELS[i + 1].live);
-    const patch = [...cur].filter(g => !nxt.has(g)), restore = [...nxt].filter(g => !cur.has(g));
-    L.notes.patch = patch; L.notes.restore = restore;
-    if (i === NBASE - 1) { L.notes.lines = [L.notes.lines[0], 'Content Update 1.2 is here: 81 brand new levels! Every one passed QA. QA is still my cousin.', 'Known issue: old glitches keep coming back, one level at a time.']; continue; }
-    const lines = [];
-    patch.forEach(g => lines.push(pick(PATCH_LINE[g])));
-    lines.push(pick(FILLER));
-    if (i + 1 === LEVELS.length - 1) lines.push('All glitches gone. Only the pause menu is left, and we are watching it.');
-    else if (restore.length) lines.push('Known issue: ' + restore.map(g => ISSUE_LINE[g]).join(', and ') + '.');
-    else lines.push('Known issue: ' + [...nxt].map(g => ISSUE_LINE[g]).join(', and ') + ' (still).');
-    L.notes.lines = lines;
+    return { w: A, h: 17, need: 0, ops, approach: A, floor: F };
   }
 
-  function liveFor(idx) {
-    if (idx === LEVELS.length - 1) return new Set(['pauseclip']);
-    if (LEVELS[idx] && LEVELS[idx].live) return new Set(LEVELS[idx].live);
-    const live = new Set(START_LIVE);
-    for (let i = 0; i < idx && i < LEVELS.length; i++) {
-      const n = LEVELS[i].notes;
-      (n.patch || []).forEach(g => live.delete(g));
-      (n.restore || []).forEach(g => live.add(g));
+  function generate(seed) {
+    seedNow = seed >>> 0;
+    const rnd = rng(seedNow);
+    const pick = a => a[Math.floor(rnd() * a.length)];
+    const single = ROOMS.filter(R => R.live.length === 1);
+    LEVELS.length = 0;
+    let recent = [];
+    for (let n = 0; n < TOTAL; n++) {
+      const final = n === TOTAL - 1;
+      const count = final ? 1 : n < 8 ? 1 : n < 35 ? 1 + (rnd() < 0.6 ? 1 : 0) : n < 70 ? 2 : 2 + (rnd() < 0.6 ? 1 : 0);
+      const pool = n < 8 ? single : ROOMS;
+      const rooms = [];
+      while (rooms.length < count) {
+        const R = pick(pool);
+        if (rooms.includes(R) || (recent.includes(R) && rnd() < 0.85)) continue;
+        rooms.push(R);
+      }
+      if (final) rooms[0] = FINALE;
+      recent = rooms.slice();
+      const bugAt = Math.floor(rnd() * rooms.length);
+      const stages = rooms.map((R, k) => Object.assign({}, R, { ops: R.ops.filter(o => o[0] !== 'B' || k === bugAt) }));
+      const run = makeRun(rnd, n, 16);
+      const live = new Set(); rooms.forEach(R => R.live.forEach(g => live.add(g)));
+      const name = final ? 'Gold Master' : pick(NAMES_A) + ' ' + pick(NAMES_B);
+      const hint = rooms.length === 1 ? rooms[0].hint : rooms.map((R, k) => 'Room ' + (k + 1) + ': ' + R.hint).join(' ');
+      LEVELS.push(Object.assign(run, { name, rooms: stages, room: stages[0], live: [...live], tpl: rooms[0].tpl, hint,
+        notes: { ver: final ? '2.0.0' : '1.' + Math.floor(n / 10) + '.' + (n % 10) } }));
     }
-    if (idx === LEVELS.length - 1) live.add('pauseclip');
-    return live;
+    for (let i = 0; i < LEVELS.length; i++) {
+      const L = LEVELS[i], cur = new Set(L.live), nxt = new Set(i + 1 < LEVELS.length ? LEVELS[i + 1].live : []);
+      const patch = [...cur].filter(g => !nxt.has(g)), restore = [...nxt].filter(g => !cur.has(g));
+      L.notes.patch = patch; L.notes.restore = i + 1 === LEVELS.length - 1 ? [] : restore;
+      if (i === LEVELS.length - 1) { L.notes.lines = FINALE.notes.lines; L.notes.patch = ['pauseclip']; L.notes.restore = []; continue; }
+      const lines = [];
+      patch.forEach(g => lines.push(pick(PATCH_LINE[g])));
+      lines.push(pick(FILLER));
+      if (i + 1 === LEVELS.length - 1) lines.push('All glitches gone. Only the pause menu is left, and we are watching it.');
+      else if (L.notes.restore.length) lines.push('Known issue: ' + L.notes.restore.map(g => ISSUE_LINE[g]).join(', and ') + '.');
+      else lines.push('Known issue: ' + [...nxt].map(g => ISSUE_LINE[g]).join(', and ') + ' (still).');
+      L.notes.lines = lines;
+    }
+    return seedNow;
   }
+  generate(1);
+
+  function liveFor(idx) { return new Set(LEVELS[idx] ? LEVELS[idx].live : []); }
+
 
   function build(L) {
     const g = [];
@@ -196,12 +216,12 @@
     this.idx = idx; this.L = L;
     this.live = liveFor(idx); this.used = new Set();
     this.keys = 0; this.frame = 0; this.done = false; this.dead = 0; this.doorMsg = 0; this.kept = 0; this.bug = false; this.reveal = 0;
-    this.stage = 1; this.loadRoom(L);
+    this.stage = 1; this.loadRoom(L); if (L.rooms) this.live = new Set(L.rooms[0].live);
   };
 
   // a generated level has two stages: the obstacle run (L), then the glitch room (L.room). Dying in stage 2 respawns in stage 2.
   Game.prototype.loadRoom = function (R) {
-    this.R = R; this.need = R.need; this.grid = build(R); this.cols = R.w; this.rows = R.h;
+    this.R = R; this.need = R.need; if (R.live && this.stage > 1) this.live = new Set(R.live); this.grid = build(R); this.cols = R.w; this.rows = R.h;
     this.W = R.w * T; this.B = R.h * T; this.crates = [];
     let sx = 2, sy = 2;
     for (let r = 0; r < this.rows; r++) for (let c = 0; c < this.cols; c++) {
@@ -284,7 +304,7 @@
   Game.prototype.respawn = function () {
     const idx = this.idx, used = this.used, live = this.live, kept = this.kept, bug = this.bug, reveal = this.reveal, stage = this.stage;
     this.load(idx); this.used = used; this.live = live; this.reveal = reveal;
-    if (stage === 2) { this.stage = 2; this.loadRoom(this.L.room); }
+    if (stage > 1) { this.stage = stage; this.loadRoom(this.L.rooms[stage - 2]); }
     if (bug) { this.bug = true; for (const row of this.grid) for (let c = 0; c < row.length; c++) if (row[c] === 'B') row[c] = '.'; }
     if (kept > 0 && live.has('deathkey')) { this.keys = kept; this.ev('deathkey'); }
   };
@@ -425,8 +445,17 @@
       if (p.dash > 0 && LV.has('iframes')) { if (!p.ifr) { p.ifr = true; this.ev('iframes'); } }
       else return this.die('spikes');
     }
-    if (this.overlapsChar(p, 'G', 2) && this.stage === 1 && this.L.room) { this.stage = 2; this.loadRoom(this.L.room); this.ev('stage'); return; }
-    if (this.overlapsChar(p, 'E', 4)) { this.done = true; this.ev('exit'); }
+    if (this.overlapsChar(p, 'G', 2) && this.stage === 1 && this.L.rooms) { this.toStage(2); return; }
+    if (this.overlapsChar(p, 'E', 4)) {
+      if (this.L.rooms && this.stage - 1 < this.L.rooms.length) { this.toStage(this.stage + 1); return; }
+      this.done = true; this.ev('exit');
+    }
+  };
+
+  Game.prototype.toStage = function (st) {
+    this.stage = st; this.keys = 0; this.kept = 0; this.loadRoom(this.L.rooms[st - 2]);
+    if (this.bug) for (const row of this.grid) for (let c = 0; c < row.length; c++) if (row[c] === 'B') row[c] = '.';
+    this.ev('stage', { room: st - 1, of: this.L.rooms.length });
   };
 
   Game.prototype.ledge = function (dir) {
@@ -463,5 +492,5 @@
     }
   };
 
-  root.PN = { Game, LEVELS, GLITCHES, liveFor, T };
+  root.PN = { Game, LEVELS, GLITCHES, liveFor, T, generate, ROOMS, FINALE, seed: () => seedNow };
 })(typeof window !== 'undefined' ? window : globalThis);

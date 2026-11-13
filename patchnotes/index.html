@@ -66,7 +66,7 @@
 <script>
 (() => {
   'use strict';
-  const { Game, LEVELS, GLITCHES, liveFor, T } = window.PN;
+  const { Game, LEVELS, GLITCHES, liveFor, T, generate } = window.PN;
   const IN_APP = location.hostname === 'appassets.androidplatform.net';
   const cv = document.getElementById('c'), cx = cv.getContext('2d');
   const modal = document.getElementById('modal'), card = document.getElementById('card');
@@ -74,10 +74,14 @@
   const SAVE = 'patchnotes_v1';
   let save = { unlocked: 0, best: {}, bugs: {} };
   try { save = Object.assign(save, JSON.parse(localStorage.getItem(SAVE) || '{}')); } catch (e) {}
+  const newSeed = () => { let x = 0; try { const a = new Uint32Array(1); crypto.getRandomValues(a); x = a[0]; } catch (e) {} return (x || Math.floor(Math.random() * 4294967295)) >>> 0 || 1; };
   save.best = save.best || {}; save.bugs = save.bugs || {};
+  const seedTag = () => save.seed.toString(36).toUpperCase().padStart(7, '0');
   const bugCount = () => Object.keys(save.bugs).filter(k => save.bugs[k] && +k < LEVELS.length).length;
   const fmt = fr => (fr / 60).toFixed(2) + 's';
   const persist = () => { try { localStorage.setItem(SAVE, JSON.stringify(save)); } catch (e) {} };
+  if (!save.seed) { save = { seed: newSeed(), unlocked: 0, best: {}, bugs: {} }; persist(); }
+  generate(save.seed);
 
   const VH = 17 * T;
   let VW = 960, scale = 1, offX = 0, offY = 0, dpr = 1, cssW = 0, cssH = 0;
@@ -183,6 +187,7 @@
         <button class="btn${cont ? ' ghost' : ' green'}" id="bNew" ${cont ? '' : 'data-default'}>${save.unlocked ? 'New game' : 'Play'}</button>
         <button class="btn ghost" id="bLv">Levels</button>
       </div>
+      <p class="muted" style="text-align:center">Your levels are randomly made just for you · set #${seedTag()}</p>
       <p class="muted" style="text-align:center">🐞 Hidden bugs found: ${bugCount()} / ${LEVELS.length}</p>
       ${controlsHelp()}
       ${IN_APP ? '' : '<div class="row"><a class="btn ghost" href="../games/index.html">← Games &amp; Apps</a></div>'}
@@ -194,9 +199,15 @@
 
   function showLevels() {
     state = 'title';
-    openModal(`<h2>Levels</h2><p class="muted">Beat a level to unlock the next build. 🐞 marks levels where you found the hidden bug.</p>
+    openModal(`<h2>Levels</h2><p class="muted">Set #${seedTag()} · beat a level to unlock the next build. 🐞 marks levels where you found the hidden bug.</p>
       <div class="lv">${LEVELS.map((L, i) => `<button class="btn ${i <= save.unlocked ? '' : 'ghost'}" data-l="${i}" ${i <= save.unlocked ? '' : 'disabled'}>${i === LEVELS.length - 1 ? 'FINAL' : i + 1}<br><span style="font-size:10px;font-weight:normal">${esc(L.name)}${save.bugs[i] ? ' 🐞' : ''}${save.best[i] ? '<br>' + fmt(save.best[i]) : ''}</span></button>`).join('')}</div>
-      <div class="row"><button class="btn ghost" id="bBack" data-default>Back</button></div>`);
+      <div class="row"><button class="btn ghost" id="bBack" data-default>Back</button><button class="btn ghost" id="bSeed">🎲 New random set</button></div>`);
+    bind('bSeed', () => {
+      openModal(`<h2>New random set?</h2><p>This makes a brand new set of 100 levels and resets your progress, times and bugs.</p>
+        <div class="row"><button class="btn green" id="bYes">Shuffle</button><button class="btn ghost" id="bNo" data-default>Cancel</button></div>`);
+      bind('bYes', () => { save = { seed: newSeed(), unlocked: 0, best: {}, bugs: {} }; generate(save.seed); persist(); showTitle(); });
+      bind('bNo', showLevels);
+    });
     card.querySelectorAll('[data-l]').forEach(b => b.onclick = () => startLevel(+b.dataset.l));
     bind('bBack', showTitle);
   }
@@ -206,9 +217,10 @@
     const L = LEVELS[lvl], final = lvl === LEVELS.length - 1;
     openModal(`
       <p class="muted">${final ? 'FINAL LEVEL' : 'LEVEL ' + (lvl + 1) + ' / ' + (LEVELS.length - 1)} · build v${verOf(lvl)}</p>
-      <h2>${lvl === 10 ? '<span style="color:#ffd23f">CONTENT UPDATE 1.1</span><br>' : lvl === 18 ? '<span style="color:#ffd23f">CONTENT UPDATE 1.2 · 81 NEW LEVELS</span><br>' : ''}${esc(L.name)}</h2>
-      <div class="issue"><b>Known issue:</b> ${esc(hintOf(L))}</div>
-      <p class="muted">Glitches in this build:</p>${glitchChips(G.live)}
+      <h2>${esc(L.name)}</h2>
+      <p class="muted">Obstacle run, then ${L.rooms.length === 1 ? '1 glitch room' : L.rooms.length + ' glitch rooms'}.</p>
+      <div class="issue"><b>Known issue${L.rooms.length > 1 ? 's' : ''}:</b> ${esc(hintOf(L))}</div>
+      <p class="muted">Glitches in this build:</p>${glitchChips(liveFor(lvl))}
       <p class="muted">${save.bugs[lvl] ? '🐞 Hidden bug found' : '🐞 A hidden bug is in this level. It only shows up for a few seconds after you pause.'}${save.best[lvl] ? ' · best ' + fmt(save.best[lvl]) : ''}</p>
       ${lvl === 0 ? controlsHelp() : ''}
       <div class="row"><button class="btn green" id="bGo" data-default>Start</button><button class="btn ghost" id="bMenu">Menu</button></div>`);
@@ -222,8 +234,8 @@
     state = 'paused';
     const L = LEVELS[lvl];
     openModal(`<h2>Paused</h2><p class="muted">${esc(L.name)} · build v${verOf(lvl)} · deaths ${deaths}</p>
-      <div class="issue"><b>Known issue:</b> ${esc(hintOf(L))}</div>
-      <p class="muted">Glitches in this build:</p>${glitchChips(G.live)}
+      <div class="issue"><b>Known issue${G.stage > 1 ? '' : (L.rooms.length > 1 ? 's' : '')}:</b> ${esc(hintOf(G.stage > 1 ? G.R : L))}</div>
+      <p class="muted">Glitches in this build:</p>${glitchChips(liveFor(lvl))}
       <div class="row"><button class="btn green" id="bRes" data-default>Resume</button><button class="btn ghost" id="bRe">Restart</button><button class="btn ghost" id="bQ">Menu</button></div>`);
     bind('bRes', doResume);
     bind('bRe', () => { closeModal(); G.respawn(); trail = []; state = 'play'; showControls(); });
@@ -291,7 +303,7 @@
       else if (e.type === 'dash') { SFX.dash(); }
       else if (e.type === 'key') { SFX.key(); if (!toast || toast.t < 60) toast = { text: 'Key! ' + G.keys + (G.need ? ' / ' + G.need : ''), t: 70 }; }
       else if (e.type === 'bug') { SFX.key(); buzz(30); toast = { text: '🐞 Hidden bug squashed!', t: 100 }; burst(G.p.x + 10, G.p.y + 10, 14); }
-      else if (e.type === 'stage') { camX = null; trail = []; toast = { text: 'Entering the glitch room. Checkpoint saved.', t: 120 }; SFX.door(); }
+      else if (e.type === 'stage') { camX = null; trail = []; toast = { text: 'Glitch room ' + e.room + ' / ' + e.of + '. Checkpoint saved.', t: 120 }; SFX.door(); }
       else if (e.type === 'door') { SFX.door(); toast = { text: 'Door unlocked', t: 70 }; }
       else if (e.type === 'toast') toast = { text: e.text, t: 120 };
       else if (e.type === 'die') { deaths++; SFX.die(); buzz(60); shake = 10; burst(G.p.x + 10, G.p.y + 14, 26); }
@@ -380,10 +392,10 @@
     cx.restore();
 
     // HUD (screen space, inside the view)
-    cx.fillStyle = 'rgba(10,8,20,0.7)'; cx.fillRect(8, 8, 250, G.need ? 46 : 28);
+    cx.fillStyle = 'rgba(10,8,20,0.7)'; cx.fillRect(8, 8, 320, G.need ? 46 : 28);
     cx.font = 'bold 14px ui-monospace, Menlo, Consolas, monospace'; cx.textBaseline = 'top'; cx.textAlign = 'left';
-    cx.fillStyle = '#fff'; cx.fillText((lvl === LEVELS.length - 1 ? 'FINAL' : 'LV ' + (lvl + 1)) + ' · ' + G.L.name, 16, 14);
-    if (G.bug || save.bugs[lvl]) { cx.textAlign = 'right'; cx.fillStyle = '#39ff88'; cx.fillText('🐞', 250, 14); cx.textAlign = 'left'; }
+    cx.fillStyle = '#fff'; cx.fillText((lvl === LEVELS.length - 1 ? 'FINAL' : 'LV ' + (lvl + 1)) + ' · ' + G.L.name + (G.stage > 1 ? '  ' + (G.stage - 1) + '/' + G.L.rooms.length : ''), 16, 14);
+    if (G.bug || save.bugs[lvl]) { cx.textAlign = 'right'; cx.fillStyle = '#39ff88'; cx.fillText('🐞', 320, 14); cx.textAlign = 'left'; }
     if (G.need) { cx.fillStyle = '#ffd23f'; cx.fillText('KEYS ' + G.keys + '   door needs ' + G.need, 16, 34); }
     cx.textAlign = 'right'; cx.fillStyle = '#9a92c9'; cx.font = '12px ui-monospace, Menlo, Consolas, monospace';
     cx.fillText('build v' + verOf(lvl), VW - 12, VH - 20);
