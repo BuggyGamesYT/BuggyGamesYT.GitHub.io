@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Comment Section · Buggy Games YT</title>
+<meta name="description" content="A platformer played live: a chat full of fake viewers votes on what happens to your level next. A Buggy Games YT game." />
+<meta name="theme-color" content="#0b0a12" />
+<link rel="icon" href="icon.png" />
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0a12; overflow: hidden; overscroll-behavior: none;
+    -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  canvas { display: block; width: 100vw; height: 100vh; height: 100dvh; touch-action: none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="core.js"></script>
+<script>
+(function () {
+  'use strict';
+  var VW = 960, VH = 540, GW = 640, CHATX = 640, CW = 320, T = CS.T;
+  var FONT = 'ui-monospace, Menlo, Consolas, "Courier New", monospace';
+  var cv = document.getElementById('c'), ctx = cv.getContext('2d');
+  var scale = 1, ox = 0, oy = 0, dpr = 1;
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    var w = window.innerWidth, h = window.innerHeight;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    scale = Math.min(w / VW, h / VH); ox = (w - VW * scale) / 2; oy = (h - VH * scale) / 2;
+  }
+  window.addEventListener('resize', resize); resize();
+
+  // ---------- save ----------
+  var save = { unlocked: 0, best: 0, muted: false };
+  try { var s = JSON.parse(localStorage.getItem('commentsection_save') || '{}'); for (var k in s) save[k] = s[k]; } catch (e) {}
+  function persist() { try { localStorage.setItem('commentsection_save', JSON.stringify(save)); } catch (e) {} }
+
+  // ---------- audio ----------
+  var ac = null;
+  function audio() { if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } if (ac && ac.state === 'suspended') ac.resume(); }
+  function tone(f, d, type, vol, slide) {
+    if (!ac || save.muted) return;
+    var t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+    o.type = type || 'square'; o.frequency.setValueAtTime(f, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + d);
+    g.gain.setValueAtTime(vol || 0.08, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + d + 0.02);
+  }
+  function sfx(n) {
+    switch (n) {
+      case 'jump': tone(420, 0.12, 'square', 0.05, 720); break;
+      case 'coin': tone(990, 0.06, 'square', 0.05); setTimeout(function () { tone(1320, 0.09, 'square', 0.05); }, 55); break;
+      case 'stomp': tone(200, 0.12, 'triangle', 0.12, 80); break;
+      case 'die': tone(500, 0.5, 'sawtooth', 0.08, 60); break;
+      case 'poll': tone(660, 0.08, 'sine', 0.08); setTimeout(function () { tone(880, 0.1, 'sine', 0.08); }, 90); break;
+      case 'chaos': tone(150, 0.35, 'sawtooth', 0.1, 600); break;
+      case 'dono': [784, 988, 1175, 1568].forEach(function (f, i) { setTimeout(function () { tone(f, 0.12, 'triangle', 0.08); }, i * 70); }); break;
+      case 'shield': tone(300, 0.25, 'triangle', 0.1, 900); break;
+      case 'check': tone(523, 0.1, 'triangle', 0.08); setTimeout(function () { tone(784, 0.15, 'triangle', 0.08); }, 100); break;
+      case 'clear': [523, 659, 784, 1047].forEach(function (f, i) { setTimeout(function () { tone(f, 0.18, 'square', 0.06); }, i * 110); }); break;
+      case 'over': tone(300, 0.7, 'triangle', 0.1, 70); break;
+      case 'tick': tone(1200, 0.04, 'sine', 0.05); break;
+      case 'ui': tone(700, 0.05, 'square', 0.04); break;
+    }
+  }
+
+  // ---------- state ----------
+  var screen = 'title';  // title | intro | play | paused | clear | over | win
+  var game = null, introT = 0, touchMode = false;
+  var keys = {}, prevJump = false;
+  var touches = {}; // id -> {x,y}
+  var menuBtns = [];
+
+  function startGame(li) {
+    audio();
+    game = new CS.Game({ startLevel: li, sfx: sfx });
+    screen = 'intro'; introT = 0;
+  }
+
+  // ---------- input ----------
+  var KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'jump', KeyW: 'jump', Space: 'jump', KeyZ: 'jump' };
+  window.addEventListener('keydown', function (e) {
+    audio();
+    if (KEYMAP[e.code]) { keys[KEYMAP[e.code]] = true; e.preventDefault(); }
+    if (e.repeat) return;
+    if (e.code === 'Escape' || e.code === 'KeyP') togglePause();
+    else if (e.code === 'KeyM') { save.muted = !save.muted; persist(); }
+    else if (e.code === 'Enter' || e.code === 'Space') confirmKey();
+  });
+  window.addEventListener('keyup', function (e) { if (KEYMAP[e.code]) keys[KEYMAP[e.code]] = false; });
+  window.addEventListener('blur', function () { keys = {}; touches = {}; if (screen === 'play') togglePause(); });
+  window.addEventListener('pagehide', function () { if (screen === 'play') togglePause(); });
+  document.addEventListener('visibilitychange', function () { if (document.hidden && screen === 'play') togglePause(); });
+
+  function toV(cx, cy) { return { x: (cx - ox) / scale, y: (cy - oy) / scale }; }
+  var TB = { left: { x: 18, y: 420, w: 96, h: 100 }, right: { x: 126, y: 420, w: 96, h: 100 }, jump: { x: 520, y: 420, w: 104, h: 100 }, pause: { x: 586, y: 10, w: 44, h: 36 } };
+  function inR(p, r) { return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h; }
+
+  function onDown(id, cx, cy, isTouch) {
+    audio();
+    if (isTouch) touchMode = true;
+    var p = toV(cx, cy);
+    if (screen === 'play') {
+      if (inR(p, TB.pause)) { togglePause(); return; }
+      if (isTouch) touches[id] = p;
+      return;
+    }
+    for (var i = 0; i < menuBtns.length; i++) if (inR(p, menuBtns[i])) { sfx('ui'); menuBtns[i].fn(); return; }
+    if (screen === 'intro' && introT > 0.6) { screen = 'play'; }
+    else if (screen === 'clear' && game.stateT > 1.2) nextLevel();
+  }
+  cv.addEventListener('touchstart', function (e) { e.preventDefault(); for (var i = 0; i < e.changedTouches.length; i++) { var t = e.changedTouches[i]; onDown(t.identifier, t.clientX, t.clientY, true); } }, { passive: false });
+  cv.addEventListener('touchmove', function (e) { e.preventDefault(); for (var i = 0; i < e.changedTouches.length; i++) { var t = e.changedTouches[i]; if (touches[t.identifier]) touches[t.identifier] = toV(t.clientX, t.clientY); } }, { passive: false });
+  function tEnd(e) { e.preventDefault(); for (var i = 0; i < e.changedTouches.length; i++) delete touches[e.changedTouches[i].identifier]; }
+  cv.addEventListener('touchend', tEnd, { passive: false }); cv.addEventListener('touchcancel', tEnd, { passive: false });
+  cv.addEventListener('mousedown', function (e) { onDown('m', e.clientX, e.clientY, false); });
+
+  function touchInput() {
+    var o = { left: false, right: false, jump: false };
+    for (var id in touches) {
+      var p = touches[id];
+      if (p.x < 240 && p.y > 330) { if (p.x < 120) o.left = true; else o.right = true; }
+      else if (p.x > 400 && p.x < GW && p.y > 300) o.jump = true;
+    }
+    return o;
+  }
+
+  function togglePause() {
+    if (screen === 'play') { screen = 'paused'; keys = {}; touches = {}; }
+    else if (screen === 'paused') screen = 'play';
+  }
+  function confirmKey() {
+    if (screen === 'title') startGame(save.unlocked > 0 ? save.unlocked * 4 : 0);
+    else if (screen === 'intro' && introT > 0.6) screen = 'play';
+    else if (screen === 'clear' && game.stateT > 1.2) nextLevel();
+    else if (screen === 'over' && game.stateT > 1) { game.retryStream(); screen = 'intro'; introT = 0; }
+    else if (screen === 'win' && game.stateT > 1.5) screen = 'title';
+  }
+  function nextLevel() {
+    var r = game.advance();
+    var si = CS.streamOf(game.li);
+    if (r !== 'win' && si > save.unlocked) { save.unlocked = si; persist(); }
+    if (r === 'win') { screen = 'win'; game.stateT = 0; save.best = Math.max(save.best, game.peak); save.unlocked = 0; save.won = true; persist(); }
+    else if (r === 'newstream') { screen = 'intro'; introT = 0; }
+    else screen = 'play';
+  }
+  window.__csBack = function () { if (screen === 'play') { togglePause(); return 1; } if (screen === 'paused') { screen = 'title'; return 1; } if (screen !== 'title') { screen = 'title'; return 1; } return 0; };
+
+  // ---------- drawing helpers ----------
+  function rr(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  function text(s, x, y, size, color, align, bold) { ctx.font = (bold === false ? '' : 'bold ') + size + 'px ' + FONT; ctx.fillStyle = color; ctx.textAlign = align || 'left'; ctx.textBaseline = 'middle'; ctx.fillText(s, x, y); }
+  function fmt(n) { n = Math.round(n); return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  function button(label, x, y, w, h, color, fn) {
+    rr(x, y, w, h, 12); ctx.fillStyle = color; ctx.fill();
+    text(label, x + w / 2, y + h / 2 + 1, 20, '#fff', 'center');
+    menuBtns.push({ x: x, y: y, w: w, h: h, fn: fn });
+  }
+  function wrap(s, maxW) {
+    var words = s.split(' '), lines = [], cur = '';
+    for (var i = 0; i < words.length; i++) {
+      var t = cur ? cur + ' ' + words[i] : words[i];
+      if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = words[i]; } else cur = t;
+    }
+    if (cur) lines.push(cur);
+    return lines;
+  }
+
+  // ---------- world drawing ----------
+  function drawWorld(g, now) {
+    var L = g.L, p = g.p, st = CS.STREAMS[CS.streamOf(g.li)];
+    var zoom = g.fx.ZOOM > 0 ? 1.55 : 1;
+    var viewW = GW / zoom, viewH = VH / zoom;
+    var cx = p.x + p.w / 2 - viewW * 0.4, cy = zoom > 1 ? p.y + p.h / 2 - viewH / 2 : 0;
+    cx = Math.max(0, Math.min(L.W * T - viewW, cx)); cy = Math.max(0, Math.min(VH - viewH, cy));
+    // sky
+    var grd = ctx.createLinearGradient(0, 0, 0, VH); grd.addColorStop(0, st.sky[0]); grd.addColorStop(1, st.sky[1]);
+    ctx.fillStyle = grd; ctx.fillRect(0, 0, GW, VH);
+    // parallax "stream overlay" shapes
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    for (var i = 0; i < 9; i++) { var bx = ((i * 230 - cx * 0.25) % 2070 + 2070) % 2070 - 200; ctx.fillRect(bx, 90 + (i % 3) * 70, 120, 120); }
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, 0, GW, VH); ctx.clip();
+    ctx.scale(zoom, zoom); ctx.translate(-Math.round(cx), -Math.round(cy));
+    var x0 = Math.floor(cx / T) - 1, x1 = Math.ceil((cx + viewW) / T) + 1;
+    for (var ty = 0; ty < L.H; ty++) for (var tx = Math.max(0, x0); tx < Math.min(L.W, x1); tx++) {
+      var v = L.tiles[ty * L.W + tx], X = tx * T, Y = ty * T;
+      if (v === 1) {
+        ctx.fillStyle = st.ground; ctx.fillRect(X, Y, T, T);
+        if (CS.tileAt(L, tx, ty - 1) !== 1) { ctx.fillStyle = st.top; ctx.fillRect(X, Y, T, 6); }
+        ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(X + T - 2, Y, 2, T); ctx.fillRect(X, Y + T - 2, T, 2);
+      } else if (v === 2 || v === 3) {
+        ctx.fillStyle = v === 3 ? '#ff3d7f' : '#e8e8f0';
+        for (var s2 = 0; s2 < 3; s2++) { ctx.beginPath(); ctx.moveTo(X + 2 + s2 * 10, Y + T); ctx.lineTo(X + 7 + s2 * 10, Y + 12); ctx.lineTo(X + 12 + s2 * 10, Y + T); ctx.fill(); }
+      }
+    }
+    // checkpoint
+    if (L.check) {
+      var C = L.check; ctx.fillStyle = '#ddd'; ctx.fillRect(C.x, C.y - 30, 4, 60);
+      ctx.fillStyle = g.cpHit ? '#5cf2b8' : '#888'; ctx.beginPath(); ctx.moveTo(C.x + 4, C.y - 30); ctx.lineTo(C.x + 30, C.y - 20); ctx.lineTo(C.x + 4, C.y - 10); ctx.fill();
+    }
+    // goal: END STREAM button
+    var G = L.goal;
+    rr(G.x - 10, G.y - 26, G.w + 20, 22, 6); ctx.fillStyle = '#ff2e4d'; ctx.fill();
+    text('END STREAM', G.x + G.w / 2, G.y - 15, 10, '#fff', 'center');
+    ctx.fillStyle = '#ff2e4d'; ctx.fillRect(G.x + G.w / 2 - 3, G.y - 4, 6, G.h + 4);
+    ctx.fillStyle = 'rgba(255,46,77,' + (0.25 + 0.15 * Math.sin(now * 5)) + ')'; ctx.fillRect(G.x, G.y, G.w, G.h);
+    // likes (coins)
+    for (i = 0; i < L.coins.length; i++) {
+      var c = L.coins[i]; if (c.got || c.x < cx - 40 || c.x > cx + viewW + 40) continue;
+      var bob = Math.sin(now * 4 + c.x) * 3;
+      drawHeart(c.x, c.y + bob, 9, '#ff4d8d');
+    }
+    // enemies (trolls)
+    for (i = 0; i < L.enemies.length; i++) {
+      var e = L.enemies[i]; if (e.x < cx - 60 || e.x > cx + viewW + 60) continue;
+      if (e.dead) { if (e.squash < 0.4) { ctx.fillStyle = '#7a3cff'; ctx.fillRect(e.x - 2, e.y + e.h - 8, e.w + 4, 8); } continue; }
+      ctx.fillStyle = e.spawned ? '#ff3d7f' : '#7a3cff'; rr(e.x, e.y, e.w, e.h, 8); ctx.fill();
+      ctx.fillStyle = '#fff'; var ex = e.vx < 0 ? -3 : 3;
+      ctx.fillRect(e.x + 6 + ex, e.y + 7, 5, 6); ctx.fillRect(e.x + 15 + ex, e.y + 7, 5, 6);
+      ctx.fillStyle = '#111'; ctx.fillRect(e.x + 6 + ex, e.y + 5, 6, 2); ctx.fillRect(e.x + 14 + ex, e.y + 5, 6, 2);
+      ctx.fillStyle = '#111'; ctx.fillRect(e.x + 8, e.y + 17, 10, 2);
+    }
+    // player
+    if (!p.dead || p.deadT < 0.15) drawPlayer(g, p, now);
+    else { // death puff
+      var k = p.deadT; ctx.fillStyle = 'rgba(255,255,255,' + Math.max(0, 1 - k) + ')';
+      for (i = 0; i < 8; i++) { var a = i / 8 * Math.PI * 2; ctx.fillRect(p.x + p.w / 2 + Math.cos(a) * k * 90, p.y + p.h / 2 + Math.sin(a) * k * 90, 6, 6); }
+    }
+    ctx.restore();
+    // lights out
+    if (g.fx.DARK > 0) {
+      var px = (p.x + p.w / 2 - cx) * zoom, py = (p.y + p.h / 2 - cy) * zoom;
+      var rg = ctx.createRadialGradient(px, py, 40, px, py, 150);
+      rg.addColorStop(0, 'rgba(0,0,0,0)'); rg.addColorStop(1, 'rgba(0,0,0,0.96)');
+      ctx.fillStyle = rg; ctx.fillRect(0, 0, GW, VH);
+    }
+  }
+  function drawHeart(x, y, r, col) {
+    ctx.fillStyle = col; ctx.beginPath();
+    ctx.moveTo(x, y + r * 0.9);
+    ctx.bezierCurveTo(x - r * 1.6, y - r * 0.2, x - r * 0.6, y - r * 1.3, x, y - r * 0.4);
+    ctx.bezierCurveTo(x + r * 0.6, y - r * 1.3, x + r * 1.6, y - r * 0.2, x, y + r * 0.9);
+    ctx.fill();
+  }
+  function drawPlayer(g, p, now) {
+    if (p.inv > 0 && Math.floor(now * 14) % 2 === 0) return;
+    var flip = g.gsign() < 0;
+    ctx.save(); ctx.translate(p.x + p.w / 2, p.y + p.h / 2);
+    if (flip) ctx.scale(1, -1);
+    ctx.scale(p.face, 1);
+    var w = p.w, h = p.h;
+    rr(-w / 2, -h / 2, w, h, 6); ctx.fillStyle = '#39d0ff'; ctx.fill();
+    ctx.fillStyle = '#0e2a3a'; ctx.fillRect(-w / 2 + w * 0.45, -h / 2 + h * 0.25, w * 0.18, h * 0.18); ctx.fillRect(-w / 2 + w * 0.75, -h / 2 + h * 0.25, w * 0.15, h * 0.18);
+    // headset
+    ctx.strokeStyle = '#222'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, -h / 2 + 3, w / 2 + 1, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke();
+    ctx.fillStyle = '#222'; ctx.fillRect(-w / 2 - 3, -h / 2 + 2, 5, 8);
+    ctx.fillRect(w / 2 - 2, -h / 2 + 2, 5, 8); ctx.fillRect(w / 2 + 1, -h / 2 + 9, 2, 7); ctx.fillStyle = '#ff2e4d'; ctx.fillRect(w / 2 - 1, -h / 2 + 15, 4, 3);
+    ctx.restore();
+    if (p.shield) { ctx.strokeStyle = 'rgba(255,210,63,' + (0.6 + 0.3 * Math.sin(now * 8)) + ')'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(p.x + p.w / 2, p.y + p.h / 2, Math.max(p.w, p.h) * 0.8, 0, Math.PI * 2); ctx.stroke(); }
+  }
+
+  // ---------- HUD / chat ----------
+  var FX_COL = { FLIP: '#ff4d6d', REVERSE: '#ff9f43', SPEED: '#ffd23f', ZOOM: '#7ab8ff', DARK: '#9a92c9', MOON: '#c792ff', BOUNCY: '#5cf2b8', TINY: '#ff5ce1', SLOW: '#39ff88' };
+  var FX_NAME = { FLIP: 'GRAVITY FLIP', REVERSE: 'REVERSED', SPEED: 'SPEED UP', ZOOM: 'ZOOM', DARK: 'LIGHTS OUT', MOON: 'MOON', BOUNCY: 'BOUNCY', TINY: 'TINY', SLOW: 'SLOW-MO (dono)' };
+  function drawHUD(g, now) {
+    // LIVE + viewers
+    rr(10, 10, 54, 26, 6); ctx.fillStyle = '#ff2e4d'; ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(22, 23, 4 + (Math.sin(now * 6) > 0 ? 1 : 0), 0, Math.PI * 2); ctx.fill();
+    text('LIVE', 31, 24, 13, '#fff');
+    rr(70, 10, 150, 26, 6); ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fill();
+    text(fmt(g.viewers) + ' watching', 80, 24, 13, '#fff');
+    // lives
+    for (var i = 0; i < g.lives; i++) drawHeart(238 + i * 22, 22, 8, '#ff4d6d');
+    if (g.p.shield) text('SHIELD', 238 + g.lives * 22 + 4, 24, 12, '#ffd23f');
+    // stream + progress
+    var label = g.li === 12 ? 'FINAL STREAM' : 'Stream ' + (CS.streamOf(g.li) + 1) + ' · Part ' + CS.partOf(g.li) + '/4';
+    text(label, 12, 52, 12, 'rgba(255,255,255,0.8)', 'left', false);
+    var prog = Math.max(0, Math.min(1, g.p.x / g.L.goal.x));
+    rr(150, 46, 220, 10, 5); ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fill();
+    rr(150, 46, 220 * prog, 10, 5); ctx.fillStyle = '#ff2e4d'; ctx.fill();
+    // active effects
+    var y = 72;
+    for (var k in g.fx) {
+      if (!(g.fx[k] > 0)) continue;
+      var t = g.fx[k], warn = t < 3 && Math.floor(now * 6) % 2 === 0;
+      rr(10, y, 168, 22, 6); ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fill();
+      text((FX_NAME[k] || k) + ' ' + Math.ceil(t) + 's', 18, y + 12, 12, warn ? '#fff' : (FX_COL[k] || '#fff'));
+      y += 26;
+    }
+    // pause button
+    rr(TB.pause.x, TB.pause.y, TB.pause.w, TB.pause.h, 8); ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillRect(TB.pause.x + 15, TB.pause.y + 10, 5, 16); ctx.fillRect(TB.pause.x + 25, TB.pause.y + 10, 5, 16);
+    // banner
+    if (g.banner) {
+      var b = g.banner, a = Math.min(1, b.t * 3);
+      ctx.globalAlpha = a; ctx.font = 'bold 22px ' + FONT;
+      var bw = Math.min(GW - 40, ctx.measureText(b.text).width + 40);
+      rr(GW / 2 - bw / 2, 150, bw, 46, 10); ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fill();
+      ctx.strokeStyle = b.color; ctx.lineWidth = 2; ctx.stroke();
+      var sz = 22; while (sz > 12) { ctx.font = 'bold ' + sz + 'px ' + FONT; if (ctx.measureText(b.text).width < bw - 24) break; sz--; }
+      text(b.text, GW / 2, 174, sz, b.color, 'center');
+      ctx.globalAlpha = 1;
+    }
+    // touch controls
+    if (touchMode) {
+      var ti = touchInput();
+      tbtn(TB.left, '◀', ti.left); tbtn(TB.right, '▶', ti.right); tbtn(TB.jump, 'JUMP', ti.jump);
+    }
+  }
+  function tbtn(r, label, on) {
+    rr(r.x, r.y, r.w, r.h, 18); ctx.fillStyle = on ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.13)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2; ctx.stroke();
+    text(label, r.x + r.w / 2, r.y + r.h / 2 + 1, label.length > 1 ? 20 : 30, 'rgba(255,255,255,0.85)', 'center');
+  }
+
+  function drawChat(g, now) {
+    var X = CHATX;
+    ctx.fillStyle = '#121019'; ctx.fillRect(X, 0, CW, VH);
+    ctx.fillStyle = '#1e1a2b'; ctx.fillRect(X, 0, CW, 40);
+    text('STREAM CHAT', X + 14, 21, 14, '#fff');
+    text(fmt(g ? g.viewers : 0), X + CW - 14, 21, 12, '#ff6b8b', 'right');
+    ctx.fillStyle = '#2a2540'; ctx.fillRect(X, 40, CW, 1);
+    var top = 46;
+    // poll box
+    if (g && g.poll) {
+      var P = g.poll, n = P.opts.length, total = 0, i;
+      for (i = 0; i < n; i++) total += P.votes[i];
+      var bh = 34 + n * 30;
+      rr(X + 8, top, CW - 16, bh, 10); ctx.fillStyle = '#231c3d'; ctx.fill(); ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 2; ctx.stroke();
+      text('POLL · ' + Math.ceil(P.t) + 's', X + 18, top + 16, 13, '#ffd23f');
+      rr(X + 110, top + 11, (CW - 136) * (P.t / P.dur), 8, 4); ctx.fillStyle = '#ffd23f'; ctx.fill();
+      for (i = 0; i < n; i++) {
+        var yy = top + 30 + i * 30, frac = total ? P.votes[i] / total : 0;
+        rr(X + 16, yy, CW - 32, 24, 6); ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.fill();
+        if (frac > 0) { rr(X + 16, yy, (CW - 32) * frac, 24, 6); ctx.fillStyle = 'rgba(255,210,63,0.35)'; ctx.fill(); }
+        text((i + 1) + '. ' + CS.CHAOS_FX[P.opts[i]].label, X + 24, yy + 13, 12, '#fff');
+        text(Math.round(frac * 100) + '%', X + CW - 24, yy + 13, 12, '#ffd23f', 'right');
+      }
+      top += bh + 6;
+    }
+    // messages from the bottom up
+    ctx.save(); ctx.beginPath(); ctx.rect(X, top, CW, VH - top); ctx.clip();
+    var y = VH - 10, msgs = g ? g.chat : [];
+    ctx.font = '13px ' + FONT;
+    for (var m = msgs.length - 1; m >= 0 && y > top; m--) {
+      var c = msgs[m], lines, lh = 17;
+      var slide = Math.min(1, c.t * 8);
+      if (c.kind === 'sys') {
+        ctx.font = 'bold 12px ' + FONT; lines = wrap(c.text, CW - 36);
+        var hh = lines.length * 16 + 10; y -= hh;
+        rr(X + 10, y, CW - 20, hh - 4, 6); ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fill();
+        for (var l = 0; l < lines.length; l++) text(lines[l], X + 18, y + 11 + l * 16, 12, c.color, 'left');
+        y -= 4; continue;
+      }
+      ctx.font = 'bold 13px ' + FONT;
+      var nameW = ctx.measureText(c.name + ':').width;
+      ctx.font = '13px ' + FONT;
+      var all = wrap(c.name + ': ' + c.text, CW - 28);
+      var hgt = all.length * lh + (c.kind === 'dono' ? 12 : 4);
+      y -= hgt;
+      var xo = X + 14 + (1 - slide) * 30;
+      if (c.kind === 'dono') { rr(X + 8, y, CW - 16, hgt - 2, 8); ctx.fillStyle = 'rgba(255,210,63,0.18)'; ctx.fill(); ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 1.5; ctx.stroke(); }
+      var yy2 = y + (c.kind === 'dono' ? 14 : 9);
+      // first line: colored name then text
+      var first = all[0];
+      text(c.name + ':', xo, yy2, 13, c.color, 'left', true);
+      var rest = first.slice(c.name.length + 1);
+      text(rest, xo + nameW, yy2, 13, c.kind === 'dono' ? '#ffe9a3' : '#e6e3f2', 'left', false);
+      for (var j = 1; j < all.length; j++) text(all[j], xo, yy2 + j * lh, 13, c.kind === 'dono' ? '#ffe9a3' : '#e6e3f2', 'left', false);
+    }
+    ctx.restore();
+  }
+
+  // ---------- screens ----------
+  function overlay(a) { ctx.fillStyle = 'rgba(8,6,16,' + a + ')'; ctx.fillRect(0, 0, GW, VH); }
+  function drawTitle(now) {
+    var grd = ctx.createLinearGradient(0, 0, 0, VH); grd.addColorStop(0, '#1b1440'); grd.addColorStop(1, '#3a2370');
+    ctx.fillStyle = grd; ctx.fillRect(0, 0, GW, VH);
+    rr(GW / 2 - 40, 70, 80, 30, 8); ctx.fillStyle = '#ff2e4d'; ctx.fill(); text('LIVE', GW / 2, 86, 16, '#fff', 'center');
+    text('COMMENT', GW / 2, 150, 54, '#fff', 'center');
+    text('SECTION', GW / 2, 206, 54, '#ff4d8d', 'center');
+    text('Chat votes. Your level changes. Good luck.', GW / 2, 252, 15, '#d6d0ff', 'center', false);
+    if (save.unlocked > 0) {
+      button('CONTINUE: STREAM ' + (save.unlocked + 1), GW / 2 - 150, 290, 300, 54, '#ff2e4d', function () { startGame(save.unlocked * 4 > 12 ? 12 : save.unlocked * 4); });
+      button('START OVER', GW / 2 - 150, 354, 300, 46, 'rgba(255,255,255,0.14)', function () { startGame(0); });
+    } else button('GO LIVE', GW / 2 - 120, 300, 240, 60, '#ff2e4d', function () { startGame(0); });
+    button(save.muted ? 'SOUND: OFF' : 'SOUND: ON', 20, VH - 56, 150, 40, 'rgba(255,255,255,0.12)', function () { save.muted = !save.muted; persist(); });
+    if (save.best) text('Best peak: ' + fmt(save.best) + ' viewers', GW / 2, 430, 14, '#ffd23f', 'center');
+    text(touchMode ? 'Hold ◀ ▶ to move, tap JUMP' : 'Move: ←→ / A D   Jump: Space / W   Pause: Esc', GW / 2, 470, 13, 'rgba(255,255,255,0.7)', 'center', false);
+    text('A Buggy Games YT game', GW - 16, VH - 20, 12, 'rgba(255,255,255,0.5)', 'right', false);
+  }
+  var INTRO_LINES = [
+    'Chat is calm. For now.',
+    'Chat found the poll button.',
+    'Chat has been up for 24 hours. So has the rage.',
+    'Polls every few seconds. Chat has the controller.'
+  ];
+  function drawIntro(g, now) {
+    drawWorld(g, now); overlay(0.82);
+    var si = CS.streamOf(g.li), st = CS.STREAMS[si];
+    text(g.li === 12 ? 'BOSS STREAM' : 'STREAM ' + (si + 1) + ' OF 4', GW / 2, 150, 18, '#ff4d8d', 'center');
+    ctx.font = 'bold 30px ' + FONT; var ls = wrap(st.name, GW - 80);
+    for (var i = 0; i < ls.length; i++) text(ls[i], GW / 2, 200 + i * 38, 30, '#fff', 'center');
+    text(INTRO_LINES[si], GW / 2, 210 + ls.length * 38, 15, '#d6d0ff', 'center', false);
+    text('Starting with ' + fmt(g.viewers) + ' viewers · 3 lives', GW / 2, 250 + ls.length * 38, 14, '#ffd23f', 'center', false);
+    if (introT > 0.6) button('GO LIVE', GW / 2 - 100, 360, 200, 54, '#ff2e4d', function () { screen = 'play'; });
+  }
+  function drawPaused(g, now) {
+    drawWorld(g, now); overlay(0.7);
+    text('PAUSED', GW / 2, 150, 40, '#fff', 'center');
+    text('(chat is still typing)', GW / 2, 190, 14, '#d6d0ff', 'center', false);
+    button('RESUME', GW / 2 - 110, 230, 220, 52, '#ff2e4d', function () { screen = 'play'; });
+    button(save.muted ? 'SOUND: OFF' : 'SOUND: ON', GW / 2 - 110, 292, 220, 44, 'rgba(255,255,255,0.14)', function () { save.muted = !save.muted; persist(); });
+    button('QUIT TO MENU', GW / 2 - 110, 346, 220, 44, 'rgba(255,255,255,0.14)', function () { screen = 'title'; });
+  }
+  function drawClear(g, now) {
+    drawWorld(g, now); overlay(0.65);
+    var endStream = g.li === 12 || g.li % 4 === 3;
+    text(endStream ? 'STREAM ENDED' : 'PART CLEARED', GW / 2, 170, 38, '#5cf2b8', 'center');
+    text(fmt(g.viewers) + ' watching · peak ' + fmt(g.peak), GW / 2, 215, 16, '#fff', 'center', false);
+    if (g.stateT > 1.2) button(g.li === 12 ? 'FINISH' : 'NEXT', GW / 2 - 100, 270, 200, 54, '#ff2e4d', nextLevel);
+  }
+  function drawOver(g, now) {
+    drawWorld(g, now); overlay(0.8);
+    text('STREAM CRASHED', GW / 2, 160, 38, '#ff4d6d', 'center');
+    text('Out of lives. Chat is spamming F.', GW / 2, 205, 15, '#d6d0ff', 'center', false);
+    if (g.stateT > 1) {
+      button('RESTART STREAM', GW / 2 - 130, 250, 260, 54, '#ff2e4d', function () { g.retryStream(); screen = 'intro'; introT = 0; });
+      button('MENU', GW / 2 - 130, 316, 260, 44, 'rgba(255,255,255,0.14)', function () { screen = 'title'; });
+    }
+  }
+  function drawWin(g, now) {
+    var grd = ctx.createLinearGradient(0, 0, 0, VH); grd.addColorStop(0, '#2a0f3d'); grd.addColorStop(1, '#ff2e4d');
+    ctx.fillStyle = grd; ctx.fillRect(0, 0, GW, VH);
+    for (var i = 0; i < 40; i++) { ctx.fillStyle = ['#ffd23f', '#5cf2b8', '#fff', '#ff4d8d'][i % 4]; ctx.fillRect((i * 97 + now * 60 * (1 + i % 3)) % GW, (i * 53 + now * 90 * (1 + i % 2)) % VH, 6, 6); }
+    text('YOU BEAT CHAT', GW / 2, 160, 46, '#fff', 'center');
+    text('Peak viewers: ' + fmt(g.peak), GW / 2, 220, 22, '#ffd23f', 'center');
+    text('Best ever: ' + fmt(save.best), GW / 2, 255, 15, '#fff', 'center', false);
+    if (g.stateT > 1.5) button('BACK TO MENU', GW / 2 - 120, 300, 240, 54, 'rgba(0,0,0,0.35)', function () { screen = 'title'; });
+  }
+
+  // ---------- loop ----------
+  var last = performance.now(), demo = null;
+  function frame(nowMs) {
+    var dt = Math.min(0.05, (nowMs - last) / 1000); last = nowMs;
+    var now = nowMs / 1000;
+    menuBtns = [];
+    // input
+    var ti = touchInput();
+    var inp = { left: !!keys.left || ti.left, right: !!keys.right || ti.right, jump: !!keys.jump || ti.jump };
+    inp.jumpPressed = inp.jump && !prevJump; prevJump = inp.jump;
+    if (screen === 'play') {
+      game.update(dt, inp);
+      if (game.state === 'clear') { screen = 'clear'; save.best = Math.max(save.best, game.peak); persist(); }
+      else if (game.state === 'over') screen = 'over';
+    } else if (game && (screen === 'clear' || screen === 'over' || screen === 'win' || screen === 'paused')) {
+      game.stateT += dt;
+      
+    } else if (screen === 'intro') { introT += dt; }
+    if (screen === 'title') {
+      if (!demo) { demo = new CS.Game({ startLevel: 0 }); demo.pollTimer = 3; }
+      demo.updateChat(dt); for (var j = 0; j < demo.chat.length; j++) demo.chat[j].t += dt;
+    }
+    // draw
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = '#0b0a12'; ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy);
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, VW, VH); ctx.clip();
+    if (screen === 'title') { drawTitle(now); drawChat(demo, now); }
+    else {
+      if (screen === 'play') { drawWorld(game, now); drawHUD(game, now); }
+      else if (screen === 'intro') drawIntro(game, now);
+      else if (screen === 'paused') drawPaused(game, now);
+      else if (screen === 'clear') drawClear(game, now);
+      else if (screen === 'over') drawOver(game, now);
+      else if (screen === 'win') drawWin(game, now);
+      drawChat(game, now);
+    }
+    ctx.restore();
+    // rotate hint for portrait phones
+    if (touchMode && window.innerHeight > window.innerWidth) {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = 'rgba(8,6,16,0.92)'; ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+      ctx.font = 'bold 20px ' + FONT; ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+      ctx.fillText('Turn your phone sideways', window.innerWidth / 2, window.innerHeight / 2);
+    }
+    requestAnimationFrame(frame);
+  }
+  if ('ontouchstart' in window || navigator.maxTouchPoints > 0) touchMode = true;
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
