@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Patch Notes · Buggy Games YT</title>
+<meta name="description" content="A platformer where every level is impossible unless you use glitches. Then the dev patches them. A Buggy Games YT game." />
+<meta name="theme-color" content="#0a0814" />
+<link rel="icon" href="icon.png" />
+<style>
+  html, body { margin: 0; height: 100%; background: #0a0814; overflow: hidden; overscroll-behavior: none; color: #fff;
+    font-family: ui-monospace, Menlo, Consolas, "Courier New", monospace; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  canvas { display: block; width: 100vw; height: 100vh; height: 100dvh; touch-action: none; }
+  .hide { display: none !important; }
+  .top { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); z-index: 3; display: flex; gap: 8px; }
+  .chip { font: bold 14px inherit; font-family: inherit; color: #fff; border: 0; padding: 9px 13px; border-radius: 10px; background: rgba(255,255,255,0.13); cursor: pointer; }
+  .modal { position: fixed; inset: 0; z-index: 6; display: flex; align-items: center; justify-content: center; background: rgba(5,3,12,0.78); padding: 14px; box-sizing: border-box; }
+  .card { width: min(460px, 100%); max-height: calc(100dvh - 28px); overflow: auto; box-sizing: border-box; background: #140f26; border: 2px solid #6b4bff;
+    border-radius: 16px; padding: 18px 18px 16px; box-shadow: 0 0 28px rgba(120,90,255,0.45); font-size: 14px; line-height: 1.45; }
+  .card h1 { margin: 2px 0 4px; font-size: 34px; letter-spacing: 3px; text-align: center; }
+  .card h2 { margin: 0 0 4px; font-size: 20px; letter-spacing: 1px; }
+  .card p { margin: 6px 0; color: #d6d0ff; }
+  .muted { color: #9a92c9 !important; font-size: 12px; }
+  .row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+  .btn { font: bold 15px inherit; font-family: inherit; border: 0; border-radius: 10px; padding: 11px 16px; cursor: pointer; background: #6b4bff; color: #fff; text-decoration: none; }
+  .btn.ghost { background: rgba(255,255,255,0.12); }
+  .btn.green { background: #1fbf6a; }
+  .gl { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .g { font-size: 11px; padding: 4px 8px; border-radius: 999px; font-weight: bold; }
+  .g.live { background: rgba(57,255,136,0.16); color: #39ff88; border: 1px solid #39ff88; }
+  .g.dead { background: rgba(255,60,90,0.12); color: #ff6b8b; border: 1px solid #ff3c5a; text-decoration: line-through; }
+  .issue { background: #0a0814; border-left: 3px solid #ffd23f; padding: 8px 10px; border-radius: 6px; margin: 10px 0; color: #ffe9a3; }
+  .post { background: #0d0a1b; border: 1px solid #2c2552; border-radius: 12px; padding: 12px; margin-top: 10px; }
+  .who { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .av { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg,#ff0040,#ffe600,#00e5ff,#b026ff); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .post ul { margin: 6px 0 0; padding-left: 18px; color: #e9e6ff; }
+  .post li { margin: 5px 0; }
+  .stamp { display: inline-block; margin: 8px 6px 0 0; padding: 3px 8px; border: 2px solid #ff3c5a; color: #ff3c5a; font-weight: bold; font-size: 12px; transform: rotate(-3deg); border-radius: 4px; }
+  .stamp.back { border-color: #39ff88; color: #39ff88; transform: rotate(2deg); }
+  .lv { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; margin-top: 10px; }
+  .lv button { padding: 10px 4px; font-size: 13px; }
+  .lv button:disabled { opacity: 0.35; cursor: default; }
+  .logo { font-size: 38px !important; background: linear-gradient(90deg,#ff0040,#ff8a00,#ffe600,#39ff88,#00e5ff,#3d5afe,#b026ff,#ff0040); background-size: 300% 100%;
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: slide 4s linear infinite; position: relative; }
+  @keyframes slide { to { background-position: -150% 0; } }
+  .ctl { position: fixed; z-index: 4; bottom: max(14px, env(safe-area-inset-bottom)); display: flex; gap: 12px; align-items: flex-end; }
+  .ctl.l { left: max(14px, env(safe-area-inset-left)); }
+  .ctl.r { right: max(14px, env(safe-area-inset-right)); }
+  .tb { width: min(74px, 8.5vw); height: min(74px, 8.5vw); min-width: 56px; min-height: 56px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.28); background: rgba(255,255,255,0.10); color: #fff;
+    font: bold 15px inherit; font-family: inherit; display: flex; align-items: center; justify-content: center; touch-action: none; }
+  .tb.big { width: min(88px, 10vw); height: min(88px, 10vw); min-width: 66px; min-height: 66px; border-color: #00e5ff; }
+  .tb.on { background: rgba(0,229,255,0.35); }
+  .rcol { display: flex; flex-direction: column; gap: 12px; }
+  @media (max-height: 460px) { .card { padding: 12px 14px; font-size: 12.5px; } .card h2 { font-size: 17px; } .post { padding: 9px; margin-top: 6px; } .post li { margin: 2px 0; } .row { margin-top: 9px; } .btn { padding: 9px 14px; } .issue { margin: 6px 0; } }
+  kbd { background: #2c2552; border-radius: 4px; padding: 1px 5px; font-size: 12px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="top hide" id="hud"><button class="chip" id="pauseBtn" aria-label="Pause">⏸ Pause</button></div>
+<div class="ctl l hide" id="ctlL"><div class="tb" data-k="left">◀</div><div class="tb" data-k="right">▶</div></div>
+<div class="ctl r hide" id="ctlR"><div class="rcol"><div class="tb" data-k="grab">GRAB</div><div class="tb" data-k="dash">DASH</div></div><div class="tb big" data-k="jump">JUMP</div></div>
+<div class="modal" id="modal"><div class="card" id="card"></div></div>
+<script src="core.js"></script>
+<script>
+(() => {
+  'use strict';
+  const { Game, LEVELS, GLITCHES, liveFor, T } = window.PN;
+  const IN_APP = location.hostname === 'appassets.androidplatform.net';
+  const cv = document.getElementById('c'), cx = cv.getContext('2d');
+  const modal = document.getElementById('modal'), card = document.getElementById('card');
+  const hud = document.getElementById('hud'), ctlL = document.getElementById('ctlL'), ctlR = document.getElementById('ctlR');
+  const SAVE = 'patchnotes_v1';
+  let save = { unlocked: 0, best: {} };
+  try { save = Object.assign(save, JSON.parse(localStorage.getItem(SAVE) || '{}')); } catch (e) {}
+  const persist = () => { try { localStorage.setItem(SAVE, JSON.stringify(save)); } catch (e) {} };
+
+  const VH = 17 * T;
+  let VW = 960, scale = 1, offX = 0, offY = 0, dpr = 1, cssW = 0, cssH = 0;
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    cssW = window.innerWidth; cssH = window.innerHeight;
+    cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+    const gut = (typeof usingTouch !== 'undefined' && usingTouch && cssW > cssH) ? Math.min(195, cssW * 0.24) : 0;
+    const aw = cssW - gut * 2;
+    VW = Math.max(VH, Math.min(1180, Math.round(aw / cssH * VH)));
+    scale = Math.min(aw / VW, cssH / VH);
+    offX = gut + (aw - VW * scale) / 2; offY = cssW < cssH ? Math.max(0, (cssH - VH * scale) * 0.3) : (cssH - VH * scale) / 2;
+  }
+  window.addEventListener('resize', resize); resize();
+
+  // ---------- input ----------
+  const keys = { left: false, right: false, jump: false, dash: false, grab: false };
+  const touch = { left: false, right: false, jump: false, dash: false, grab: false };
+  let prev = {};
+  const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Space: 'jump', ArrowUp: 'jump', KeyW: 'jump', KeyZ: 'jump',
+    ShiftLeft: 'dash', ShiftRight: 'dash', KeyX: 'dash', KeyK: 'dash', KeyE: 'grab', KeyC: 'grab' };
+  addEventListener('keydown', e => {
+    if (e.code === 'KeyP' || e.code === 'Escape') { e.preventDefault(); if (state === 'play') doPause(); else if (state === 'paused') doResume(); return; }
+    if ((e.code === 'Enter' || e.code === 'Space') && state !== 'play' && !modal.classList.contains('hide')) {
+      const b = card.querySelector('[data-default]'); if (b) { e.preventDefault(); b.click(); } return;
+    }
+    const k = KEYMAP[e.code]; if (k) { keys[k] = true; e.preventDefault(); }
+  });
+  addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) keys[k] = false; });
+  addEventListener('blur', () => { for (const k in keys) keys[k] = false; for (const k in touch) touch[k] = false; });
+
+  var usingTouch = matchMedia('(pointer: coarse)').matches; resize();
+  addEventListener('touchstart', () => { if (!usingTouch) { usingTouch = true; resize(); showControls(); } }, { passive: true });
+  document.querySelectorAll('.tb').forEach(el => {
+    const k = el.dataset.k; const ids = new Set();
+    const set = () => { touch[k] = ids.size > 0; el.classList.toggle('on', touch[k]); };
+    el.addEventListener('pointerdown', e => { e.preventDefault(); ids.add(e.pointerId); try { el.setPointerCapture(e.pointerId); } catch (_) {} set(); audioInit(); });
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => el.addEventListener(t, e => { ids.delete(e.pointerId); set(); }));
+  });
+  document.getElementById('pauseBtn').addEventListener('click', () => { if (state === 'play') doPause(); });
+  function showControls() {
+    const on = state === 'play';
+    hud.classList.toggle('hide', !on);
+    ctlL.classList.toggle('hide', !(on && usingTouch)); ctlR.classList.toggle('hide', !(on && usingTouch));
+  }
+  function readInput() {
+    const i = {}; for (const k in keys) i[k] = keys[k] || touch[k];
+    i.jumpP = i.jump && !prev.jump; i.dashP = i.dash && !prev.dash; i.grabP = i.grab && !prev.grab;
+    prev = i; return i;
+  }
+
+  // ---------- sound ----------
+  let ac = null;
+  function audioInit() { if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } if (ac && ac.state === 'suspended') ac.resume(); }
+  addEventListener('pointerdown', audioInit); addEventListener('keydown', audioInit);
+  function beep(f1, f2, dur, type, vol) {
+    if (!ac) return;
+    const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+    o.type = type || 'square'; o.frequency.setValueAtTime(f1, t); o.frequency.exponentialRampToValueAtTime(Math.max(30, f2), t + dur);
+    g.gain.setValueAtTime(vol || 0.06, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + dur + 0.02);
+  }
+  const SFX = {
+    jump: () => beep(300, 620, 0.12), dash: () => beep(900, 200, 0.14, 'sawtooth', 0.05), key: () => { beep(880, 1400, 0.1); setTimeout(() => beep(1200, 1800, 0.12), 70); },
+    door: () => beep(200, 90, 0.3, 'triangle', 0.1), die: () => beep(400, 50, 0.45, 'sawtooth', 0.07), exit: () => { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => beep(f, f, 0.14, 'square', 0.05), i * 90)); },
+    glitch: () => { for (let i = 0; i < 6; i++) setTimeout(() => beep(100 + Math.random() * 1800, 60 + Math.random() * 900, 0.06, i % 2 ? 'sawtooth' : 'square', 0.05), i * 35); }
+  };
+  const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
+
+  // ---------- game state ----------
+  const G = new Game();
+  let state = 'title', lvl = 0, time = 0, deaths = 0, fx = 0, banner = null, toast = null, camX = 0, camY = 0, shake = 0, trail = [], parts = [];
+
+  function startLevel(i) {
+    lvl = i; G.load(i); time = 0; deaths = 0; trail = []; parts = []; banner = null; toast = null;
+    camX = null; showIntro();
+  }
+
+  function glitchChips(live) {
+    return '<div class="gl">' + Object.keys(GLITCHES).filter(k => k !== 'pauseclip' || live.has(k))
+      .map(k => `<span class="g ${live.has(k) ? 'live' : 'dead'}">${GLITCHES[k]}</span>`).join('') + '</div>';
+  }
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const verOf = i => i === 0 ? '1.0.0' : LEVELS[i - 1].notes.ver;
+  const controlsHelp = () => usingTouch
+    ? '<p class="muted">◀ ▶ move · JUMP · DASH · GRAB · ⏸ pause</p>'
+    : '<p class="muted"><kbd>←</kbd><kbd>→</kbd>/<kbd>A</kbd><kbd>D</kbd> move · <kbd>Space</kbd> jump · <kbd>Shift</kbd> dash · <kbd>E</kbd> grab · <kbd>P</kbd> pause</p>';
+
+  function openModal(html) { card.innerHTML = html; modal.classList.remove('hide'); card.scrollTop = 0; showControls(); }
+  function closeModal() { modal.classList.add('hide'); }
+  function bind(id, fn) { const el = document.getElementById(id); if (el) el.onclick = fn; }
+
+  function showTitle() {
+    state = 'title';
+    const cont = save.unlocked > 0 && save.unlocked < LEVELS.length;
+    openModal(`
+      <h1 class="logo">PATCH NOTES</h1>
+      <p style="text-align:center">Every level is impossible. Use glitches to beat it.<br>Then the dev patches the glitch you used.</p>
+      <div class="row">
+        ${cont ? `<button class="btn green" id="bCont" data-default>Continue · Level ${save.unlocked + 1}</button>` : ''}
+        <button class="btn${cont ? ' ghost' : ' green'}" id="bNew" ${cont ? '' : 'data-default'}>${save.unlocked ? 'New game' : 'Play'}</button>
+        <button class="btn ghost" id="bLv">Levels</button>
+      </div>
+      ${controlsHelp()}
+      ${IN_APP ? '' : '<div class="row"><a class="btn ghost" href="../games/index.html">← Games &amp; Apps</a></div>'}
+      <p class="muted" style="text-align:center;margin-top:12px">A Buggy Games YT game</p>`);
+    bind('bCont', () => startLevel(Math.min(save.unlocked, LEVELS.length - 1)));
+    bind('bNew', () => startLevel(0));
+    bind('bLv', showLevels);
+  }
+
+  function showLevels() {
+    state = 'title';
+    openModal(`<h2>Levels</h2><p class="muted">Beat a level to unlock the next build.</p>
+      <div class="lv">${LEVELS.map((L, i) => `<button class="btn ${i <= save.unlocked ? '' : 'ghost'}" data-l="${i}" ${i <= save.unlocked ? '' : 'disabled'}>${i === LEVELS.length - 1 ? 'FINAL' : i + 1}<br><span style="font-size:10px;font-weight:normal">${esc(L.name)}</span></button>`).join('')}</div>
+      <div class="row"><button class="btn ghost" id="bBack" data-default>Back</button></div>`);
+    card.querySelectorAll('[data-l]').forEach(b => b.onclick = () => startLevel(+b.dataset.l));
+    bind('bBack', showTitle);
+  }
+
+  function showIntro() {
+    state = 'intro';
+    const L = LEVELS[lvl], final = lvl === LEVELS.length - 1;
+    openModal(`
+      <p class="muted">${final ? 'FINAL LEVEL' : 'LEVEL ' + (lvl + 1) + ' / ' + (LEVELS.length - 1)} · build v${verOf(lvl)}</p>
+      <h2>${esc(L.name)}</h2>
+      <div class="issue"><b>Known issue:</b> ${esc(L.hint)}</div>
+      <p class="muted">Glitches in this build:</p>${glitchChips(G.live)}
+      ${lvl === 0 ? controlsHelp() : ''}
+      <div class="row"><button class="btn green" id="bGo" data-default>Start</button><button class="btn ghost" id="bMenu">Menu</button></div>`);
+    bind('bGo', () => { closeModal(); state = 'play'; prev = { jump: true, dash: true, grab: true }; showControls(); });
+    bind('bMenu', showTitle);
+  }
+
+  function doPause() {
+    if (state !== 'play') return;
+    G.pause(); drain();
+    state = 'paused';
+    const L = LEVELS[lvl];
+    openModal(`<h2>Paused</h2><p class="muted">${esc(L.name)} · build v${verOf(lvl)} · deaths ${deaths}</p>
+      <div class="issue"><b>Known issue:</b> ${esc(L.hint)}</div>
+      <p class="muted">Glitches in this build:</p>${glitchChips(G.live)}
+      <div class="row"><button class="btn green" id="bRes" data-default>Resume</button><button class="btn ghost" id="bRe">Restart</button><button class="btn ghost" id="bQ">Menu</button></div>`);
+    bind('bRes', doResume);
+    bind('bRe', () => { closeModal(); G.respawn(); trail = []; state = 'play'; showControls(); });
+    bind('bQ', showTitle);
+  }
+  function doResume() {
+    if (state !== 'paused') return;
+    closeModal(); state = 'play'; prev = { jump: true, dash: true, grab: true }; showControls();
+    G.resume(); drain();
+  }
+
+  function showNotes() {
+    state = 'notes';
+    const L = LEVELS[lvl], n = L.notes, final = lvl === LEVELS.length - 1;
+    save.unlocked = Math.max(save.unlocked, Math.min(lvl + 1, LEVELS.length - 1));
+    if (final) save.won = true;
+    persist();
+    const used = [...G.used].map(k => GLITCHES[k]);
+    const secs = (time / 60).toFixed(1);
+    openModal(`
+      <p class="muted">${final ? 'YOU BEAT THE FINAL BUILD' : 'LEVEL CLEARED'} · ${secs}s · ${deaths} death${deaths === 1 ? '' : 's'}</p>
+      <h2>${esc(L.name)} ✓</h2>
+      ${used.length ? `<p>You used: <b style="color:#00e5ff">${used.map(esc).join(', ')}</b></p>` : '<p>You used no glitches?? How??</p>'}
+      <div class="post">
+        <div class="who"><div class="av">🛠</div><div><b>lead_dev_greg</b><br><span class="muted">Patch v${n.ver} is live</span></div></div>
+        <ul>${n.lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>
+        ${(n.patch || []).map(g => `<span class="stamp">PATCHED: ${GLITCHES[g]}</span>`).join('')}
+        ${(n.restore || []).map(g => `<span class="stamp back">OOPS, BACK: ${GLITCHES[g]}</span>`).join('')}
+      </div>
+      <div class="row">${final ? '<button class="btn green" id="bEnd" data-default>Finish</button>' : '<button class="btn green" id="bNext" data-default>Next build ▶</button>'}<button class="btn ghost" id="bAgain">Replay</button></div>`);
+    bind('bNext', () => startLevel(lvl + 1));
+    bind('bAgain', () => startLevel(lvl));
+    bind('bEnd', showEnd);
+  }
+
+  function showEnd() {
+    state = 'end';
+    openModal(`<h1 class="logo">YOU BROKE IT</h1>
+      <p style="text-align:center">Every build, every patch, every glitch. The dev has removed the pause menu out of spite.</p>
+      <div class="post"><div class="who"><div class="av">🛠</div><div><b>lead_dev_greg</b><br><span class="muted">Patch v1.1.1</span></div></div>
+      <ul><li>Added the pause menu back. People were upset.</li><li>If you found a glitch we missed, please do not tell Buggy Games YT.</li></ul></div>
+      <div class="row"><button class="btn green" id="bT" data-default>Title</button><button class="btn ghost" id="bL">Levels</button></div>`);
+    bind('bT', showTitle); bind('bL', showLevels);
+  }
+
+  // ---------- events ----------
+  function drain() {
+    while (G.events.length) {
+      const e = G.events.shift();
+      if (e.type === 'glitch') {
+        if (e.first || !banner || banner.g !== e.glitch) {
+          banner = { text: 'GLITCH: ' + GLITCHES[e.glitch].toUpperCase(), t: 110, g: e.glitch };
+          fx = 22; shake = 8; SFX.glitch(); buzz([20, 30, 20]);
+        }
+        if (e.glitch === 'dupe') toast = { text: 'KEY DUPLICATED. Keys: ' + G.keys, t: 120 };
+      } else if (e.type === 'jump') SFX.jump();
+      else if (e.type === 'dash') { SFX.dash(); }
+      else if (e.type === 'key') { SFX.key(); if (!toast || toast.t < 60) toast = { text: 'Key! ' + G.keys + (G.L.need ? ' / ' + G.L.need : ''), t: 70 }; }
+      else if (e.type === 'door') { SFX.door(); toast = { text: 'Door unlocked', t: 70 }; }
+      else if (e.type === 'toast') toast = { text: e.text, t: 120 };
+      else if (e.type === 'die') { deaths++; SFX.die(); buzz(60); shake = 10; burst(G.p.x + 10, G.p.y + 14, 26); }
+      else if (e.type === 'exit') { SFX.exit(); setTimeout(showNotes, 450); }
+    }
+  }
+  function burst(x, y, n) {
+    for (let i = 0; i < n; i++) { const a = Math.random() * 6.28, s = 1 + Math.random() * 5; parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 2, t: 30 + Math.random() * 20, h: Math.random() * 360 }); }
+  }
+
+  // ---------- loop ----------
+  let last = performance.now(), acc = 0, gt = 0;
+  function frame(now) {
+    requestAnimationFrame(frame);
+    acc += Math.min(100, now - last); last = now;
+    while (acc >= 1000 / 60) {
+      acc -= 1000 / 60; gt++;
+      if (state === 'play') {
+        const inp = readInput();
+        const wasDead = G.dead;
+        G.step(inp); drain();
+        if (!G.done && !wasDead) time++;
+        const p = G.p;
+        if (p.dash > 0 || p.launched) trail.push({ x: p.x, y: p.y, t: 12, launched: p.launched });
+      }
+      trail.forEach(t => t.t--); trail = trail.filter(t => t.t > 0);
+      parts.forEach(q => { q.x += q.vx; q.y += q.vy; q.vy += 0.25; q.t--; }); parts = parts.filter(q => q.t > 0);
+      if (fx > 0) fx--; if (shake > 0) shake *= 0.85; if (shake < 0.3) shake = 0;
+      if (banner && --banner.t <= 0) banner = null;
+      if (toast && --toast.t <= 0) toast = null;
+    }
+    draw();
+  }
+
+  // ---------- drawing ----------
+  const hsl = (h, s, l, a) => `hsla(${h},${s}%,${l}%,${a == null ? 1 : a})`;
+  function draw() {
+    cx.setTransform(1, 0, 0, 1, 0, 0);
+    cx.fillStyle = '#05030c'; cx.fillRect(0, 0, cv.width, cv.height);
+    if (!G.L) { drawAttract(); return; }
+    const p = G.p;
+    const W = G.W, B = G.B;
+    const tx = W <= VW ? (W - VW) / 2 : Math.max(0, Math.min(W - VW, p.x + 10 - VW / 2));
+    const ty = p.void ? 90 : (p.y < 60 ? Math.max(-400, p.y - 140) : 0);
+    if (camX == null) { camX = tx; camY = ty; }
+    camX += (tx - camX) * 0.15; camY += (ty - camY) * 0.12;
+    const sx = shake ? (Math.random() - 0.5) * shake : 0, sy = shake ? (Math.random() - 0.5) * shake : 0;
+    const s = scale * dpr;
+    cx.setTransform(s, 0, 0, s, offX * dpr, offY * dpr);
+    cx.save();
+    cx.beginPath(); cx.rect(0, 0, VW, VH); cx.clip();
+    cx.fillStyle = '#0a0814'; cx.fillRect(0, 0, VW, VH);
+    cx.translate(Math.round(-camX + sx), Math.round(-camY + sy));
+
+    // background grid
+    cx.strokeStyle = 'rgba(107,75,255,0.08)'; cx.lineWidth = 1;
+    const gx0 = Math.floor(camX / T) * T, gy0 = Math.floor(camY / T) * T;
+    for (let x = gx0; x < camX + VW + T; x += T) { cx.beginPath(); cx.moveTo(x, camY); cx.lineTo(x, camY + VH); cx.stroke(); }
+    for (let y = gy0; y < camY + VH + T; y += T) { cx.beginPath(); cx.moveTo(camX, y); cx.lineTo(camX + VW, y); cx.stroke(); }
+
+    // missing-texture void below the map
+    if (camY + VH > B) {
+      const S = 16;
+      for (let y = B; y < camY + VH; y += S) for (let x = Math.floor(camX / S) * S; x < camX + VW; x += S) {
+        cx.fillStyle = ((x / S + y / S) & 1) ? '#ff00dc' : '#000'; cx.globalAlpha = 0.55; cx.fillRect(x, y, S, S);
+      }
+      cx.globalAlpha = 1;
+    }
+
+    // tiles
+    const c0 = Math.max(0, Math.floor(camX / T) - 1), c1 = Math.min(G.cols - 1, Math.ceil((camX + VW) / T) + 1);
+    for (let r = 0; r < G.rows; r++) for (let c = c0; c <= c1; c++) drawTile(G.grid[r][c], c * T, r * T, c, r);
+
+    // crates
+    for (const k of G.crates) {
+      cx.fillStyle = '#8a5a2b'; cx.fillRect(k.x, k.y, k.w, k.h);
+      cx.strokeStyle = '#d99a52'; cx.lineWidth = 3; cx.strokeRect(k.x + 1.5, k.y + 1.5, k.w - 3, k.h - 3);
+      cx.beginPath(); cx.moveTo(k.x + 3, k.y + 3); cx.lineTo(k.x + k.w - 3, k.y + k.h - 3); cx.moveTo(k.x + k.w - 3, k.y + 3); cx.lineTo(k.x + 3, k.y + k.h - 3); cx.stroke();
+    }
+
+    // trail
+    for (const t of trail) { cx.globalAlpha = t.t / 24; cx.fillStyle = hsl((gt * 12 + t.t * 25) % 360, 100, 60); cx.fillRect(t.x, t.y, p.w, p.h); }
+    cx.globalAlpha = 1;
+    if (!G.dead) drawPlayer(p);
+    for (const q of parts) { cx.fillStyle = hsl(q.h, 100, 60, Math.min(1, q.t / 20)); cx.fillRect(q.x, q.y, 4, 4); }
+    cx.restore();
+
+    // HUD (screen space, inside the view)
+    cx.fillStyle = 'rgba(10,8,20,0.7)'; cx.fillRect(8, 8, 250, G.L.need ? 46 : 28);
+    cx.font = 'bold 14px ui-monospace, Menlo, Consolas, monospace'; cx.textBaseline = 'top'; cx.textAlign = 'left';
+    cx.fillStyle = '#fff'; cx.fillText((lvl === LEVELS.length - 1 ? 'FINAL' : 'LV ' + (lvl + 1)) + ' · ' + G.L.name, 16, 14);
+    if (G.L.need) { cx.fillStyle = '#ffd23f'; cx.fillText('KEYS ' + G.keys + '   door needs ' + G.L.need, 16, 34); }
+    cx.textAlign = 'right'; cx.fillStyle = '#9a92c9'; cx.font = '12px ui-monospace, Menlo, Consolas, monospace';
+    cx.fillText('build v' + verOf(lvl), VW - 12, VH - 20);
+
+    if (banner) {
+      const a = Math.min(1, banner.t / 20);
+      cx.textAlign = 'center'; cx.font = 'bold 28px ui-monospace, Menlo, Consolas, monospace';
+      const jx = fx ? (Math.random() - 0.5) * 8 : 0;
+      cx.globalAlpha = a;
+      cx.fillStyle = '#ff0040'; cx.fillText(banner.text, VW / 2 - 3 + jx, 70);
+      cx.fillStyle = '#00e5ff'; cx.fillText(banner.text, VW / 2 + 3 + jx, 72);
+      cx.fillStyle = '#fff'; cx.fillText(banner.text, VW / 2 + jx, 71);
+      cx.globalAlpha = 1;
+    }
+    if (toast) {
+      cx.textAlign = 'center'; cx.font = 'bold 15px ui-monospace, Menlo, Consolas, monospace';
+      const w = cx.measureText(toast.text).width + 24;
+      cx.fillStyle = 'rgba(10,8,20,0.85)'; cx.fillRect(VW / 2 - w / 2, 112, w, 28);
+      cx.fillStyle = '#ffe9a3'; cx.fillText(toast.text, VW / 2, 119);
+    }
+    // glitch tearing
+    if (fx > 0) {
+      for (let i = 0; i < 6; i++) {
+        const y = Math.random() * VH, h = 4 + Math.random() * 22;
+        cx.fillStyle = hsl(Math.random() * 360, 100, 55, 0.22); cx.fillRect(0, y, VW, h);
+      }
+      try {
+        const ry = Math.floor(Math.random() * cv.height * 0.8), rh = Math.floor(10 + Math.random() * 50 * dpr);
+        cx.setTransform(1, 0, 0, 1, 0, 0);
+        cx.drawImage(cv, 0, ry, cv.width, rh, (Math.random() - 0.5) * 40 * dpr, ry, cv.width, rh);
+      } catch (e) {}
+    }
+  }
+
+  function drawTile(ch, x, y, c, r) {
+    const LV = G.live;
+    if (ch === '#' || ch === 'L') {
+      cx.fillStyle = '#231a45'; cx.fillRect(x, y, T, T);
+      const top = r === 0 || !'#L|D'.includes(G.tile(c, r - 1));
+      cx.fillStyle = top ? '#6b4bff' : '#2f2560'; cx.fillRect(x, y, T, top ? 4 : 2);
+      cx.fillStyle = 'rgba(255,255,255,0.05)'; cx.fillRect(x + 6, y + 10, 4, 4); cx.fillRect(x + 20, y + 20, 4, 4);
+      if (ch === 'L') {
+        cx.strokeStyle = LV.has('ledge') ? '#ffd23f' : '#5c5480'; cx.lineWidth = 2;
+        cx.beginPath(); cx.moveTo(x + 4, y + 30); cx.lineTo(x + 12, y + 18); cx.lineTo(x + 9, y + 12); cx.lineTo(x + 18, y + 6); cx.lineTo(x + 24, y + 14); cx.lineTo(x + 29, y + 4); cx.stroke();
+        if (!LV.has('ledge')) { cx.fillStyle = '#c9b48a'; cx.fillRect(x + 2, y + 13, T - 4, 6); }
+      }
+    } else if (ch === '|') {
+      const live = LV.has('clip');
+      cx.fillStyle = live ? 'rgba(0,229,255,0.18)' : '#1c3440'; cx.fillRect(x, y, T, T);
+      cx.save(); cx.beginPath(); cx.rect(x, y, T, T); cx.clip();
+      cx.strokeStyle = live ? 'rgba(0,229,255,0.75)' : '#3f6a7a'; cx.lineWidth = 3;
+      const o = live ? (gt * 0.6) % 12 : 0;
+      for (let k = -T; k < T * 2; k += 12) { cx.beginPath(); cx.moveTo(x + k + o, y); cx.lineTo(x + k + o - T, y + T); cx.stroke(); }
+      cx.restore();
+      if (live && Math.random() < 0.02) { cx.fillStyle = hsl(Math.random() * 360, 100, 60, 0.6); cx.fillRect(x - 3, y + Math.random() * T, T + 6, 3); }
+      if (!live && r % 3 === 1) { cx.fillStyle = '#c9b48a'; cx.fillRect(x - 2, y + 10, T + 4, 9); }
+    } else if (ch === 'D') {
+      cx.fillStyle = '#7a3a10'; cx.fillRect(x + 2, y, T - 4, T);
+      cx.fillStyle = '#ff8a00'; cx.fillRect(x + 2, y, 3, T); cx.fillRect(x + T - 5, y, 3, T);
+      if (r % 4 === 2) { cx.fillStyle = '#ffd23f'; cx.fillRect(x + 10, y + 10, 12, 12); cx.fillStyle = '#7a3a10'; cx.fillRect(x + 14, y + 14, 4, 6); }
+    } else if (ch === 'K') {
+      const b = Math.sin(gt * 0.08 + c) * 3;
+      cx.fillStyle = '#ffd23f';
+      cx.beginPath(); cx.arc(x + 11, y + 14 + b, 6, 0, 6.28); cx.fill();
+      cx.fillRect(x + 15, y + 12 + b, 12, 4); cx.fillRect(x + 22, y + 16 + b, 3, 5);
+      cx.fillStyle = '#0a0814'; cx.beginPath(); cx.arc(x + 11, y + 14 + b, 2.5, 0, 6.28); cx.fill();
+    } else if (ch === 'E') {
+      const pu = 0.6 + Math.sin(gt * 0.1) * 0.25;
+      cx.fillStyle = `rgba(57,255,136,${pu * 0.35})`; cx.fillRect(x - 4, y - 28, T + 8, T + 28);
+      cx.strokeStyle = '#39ff88'; cx.lineWidth = 3; cx.strokeRect(x + 1.5, y - 26, T - 3, T + 24.5);
+      cx.fillStyle = '#39ff88'; cx.font = 'bold 10px ui-monospace, monospace'; cx.textAlign = 'center'; cx.textBaseline = 'alphabetic'; cx.fillText('EXIT', x + T / 2, y - 32);
+    } else if (ch === '^') {
+      cx.fillStyle = '#ff3c5a';
+      for (let k = 0; k < 3; k++) { cx.beginPath(); cx.moveTo(x + k * 10 + 1, y + T); cx.lineTo(x + k * 10 + 6, y + 14); cx.lineTo(x + k * 10 + 11, y + T); cx.fill(); }
+    }
+  }
+
+  function drawPlayer(p) {
+    const x = p.x, y = p.y, w = p.w, h = p.h;
+    const tpose = p.launched && p.vy < 2;
+    if (p.void || fx) { cx.fillStyle = 'rgba(255,0,64,0.6)'; cx.fillRect(x - 2, y, w, h); cx.fillStyle = 'rgba(0,229,255,0.6)'; cx.fillRect(x + 2, y, w, h); }
+    cx.fillStyle = '#f2f0ff'; cx.fillRect(x, y, w, h);
+    cx.fillStyle = hsl((gt * 4) % 360, 100, 60); cx.fillRect(x, y + h - 6, w, 6);
+    if (tpose) { cx.fillStyle = '#f2f0ff'; cx.fillRect(x - 16, y + 9, w + 32, 5); }
+    cx.fillStyle = '#0a0814';
+    const ex = p.face > 0 ? x + 11 : x + 3;
+    cx.fillRect(ex, y + 7, 3, 5); cx.fillRect(ex + 5, y + 7, 3, 5);
+  }
+
+  function drawAttract() {
+    const s = scale * dpr;
+    cx.setTransform(s, 0, 0, s, offX * dpr, offY * dpr);
+    cx.fillStyle = '#0a0814'; cx.fillRect(0, 0, VW, VH);
+    cx.strokeStyle = 'rgba(107,75,255,0.1)';
+    for (let x = 0; x < VW; x += T) { cx.beginPath(); cx.moveTo(x, 0); cx.lineTo(x, VH); cx.stroke(); }
+    for (let y = 0; y < VH; y += T) { cx.beginPath(); cx.moveTo(0, y); cx.lineTo(VW, y); cx.stroke(); }
+    for (let i = 0; i < 5; i++) { cx.fillStyle = hsl((gt * 3 + i * 70) % 360, 100, 60, 0.15); cx.fillRect(0, (gt * (1 + i * 0.7) + i * 110) % VH, VW, 3); }
+  }
+
+  window.__pnBack = () => {
+    if (state === 'play') { doPause(); return 1; }
+    if (state === 'paused') { doResume(); return 1; }
+    if (state === 'intro' || state === 'notes' || state === 'end') { showTitle(); return 1; }
+    if (card.querySelector('#bBack')) { showTitle(); return 1; }
+    return 0;
+  };
+  showTitle();
+  requestAnimationFrame(frame);
+  document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play') doPause(); });
+  window.addEventListener('pagehide', () => { if (state === 'play') doPause(); });
+})();
+</script>
+</body>
+</html>
