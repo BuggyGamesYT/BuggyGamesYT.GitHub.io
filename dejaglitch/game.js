@@ -827,14 +827,14 @@
     P = { x: 120, y: 0, vy: 0, jumps: 0, face: 1, phase: 0, inv: 0, maxX: 120, hist: [] };
     const d = opts.agent;
     if (ch === 1) {
-      S.len = 3300; S.hull = S.hullMax = [70, 95, 130][d]; S.hp = 3;
+      S.len = 3300; S.hull = S.hullMax = [80, 110, 150][d]; S.hp = 3;
       const doors = [[650, 1150, 1650, 2150, 2650], [800, 1600, 2400], [1000, 2200]][d];
       S.agents = doors.map(x => ({ x, door: x, st: 'hid', hp: 1, face: -1, phase: 0, cool: rnd(1, 2), rez: 0 }));
       toast(CH_NAMES[1], 'Reach the phone at the end of the hall before the machines break into the ship.', 4.5);
     } else if (ch === 2) {
-      S.hp = 4; S.cut = 4; P.x = 220; P.down = true;
+      S.hp = [5, 7, 8][d]; S.cut = S.retried ? 1.2 : 4; P.x = 220; P.down = true;
       const n = [3, 2, 1][d];
-      for (let i = 0; i < n; i++) S.agents.push({ x: 640 + i * 110, st: 'idle', hp: 2, face: -1, phase: 0, cool: 1.5 + i * .7, wind: 0, stag: 0 });
+      for (let i = 0; i < n; i++) S.agents.push({ x: 640 + i * 110, st: 'idle', hp: d ? 1 : 2, face: -1, phase: 0, cool: 1.5 + i * .7, wind: 0, stag: 0 });
       toast('...', '', 1);
     } else {
       S.hp = 3; S.cut = 7; S.fly = false; P.x = 360; P.alt = 0; S.dist = 0; S.goalT = 60; S.need = [12, 10, 8][d];
@@ -847,6 +847,7 @@
     if (ch > (best.storyCh || 0)) { best.storyCh = ch; save(); }
     sfx.glitch();
   }
+  function storyStartRetry(ch) { const ws = S; storyStart(ch); if (ch === 2) { S.retried = true; S.cut = 1.2; } }
   function setSlowLabel(t) { const b = document.querySelector('#touch [data-k="slow"]'); if (b) b.textContent = t; }
   function storyHit() {
     if (P.inv > 0) return;
@@ -863,8 +864,8 @@
 
   function storyUpdate(dt) {
     G.time += dt; S.t += dt;
-    if (S.retry) { S.retry -= dt; if (S.retry <= 0) { const t = G.time; storyStart(S.ch); G.time = t; } return; }
-    const meterRate = S.ch === 2 ? 22 : 35;
+    if (S.retry) { S.retry -= dt; if (S.retry <= 0) { const t = G.time; storyStartRetry(S.ch); G.time = t; } return; }
+    const meterRate = S.ch === 2 ? 12 : 35;
     const want = keys.slow && G.slow > 2;
     if (want && !G.slowOn) sfx.slow();
     G.slowOn = want;
@@ -942,7 +943,7 @@
     if (S.cut > 0) {
       S.cut -= dt;
       if (S.cut < 3.2 && !S.said1) { S.said1 = 1; toast('OPERATOR', 'Your heart just started again. Get up. You can see it now.', 3); }
-      if (S.cut <= 0) { P.down = false; S.code = true; G.flash = 1; sfx.sector(); toast('YOU CAN SEE THE CODE', opts.shoot ? 'Hold STOP to freeze bullets, let go to send them back.' : 'Hold STOP when an Agent swings to counter him.', 4); }
+      if (S.cut <= 0) { P.down = false; S.code = true; G.flash = 1; sfx.sector(); toast('YOU CAN SEE THE CODE', opts.shoot ? 'Hold STOP to freeze bullets, let go to send them back.' : 'When an Agent flashes HOLD STOP!, hold STOP to counter him.', 4); }
       return;
     }
     walkPlayer(dt, 40, W - 40);
@@ -969,18 +970,19 @@
         if (Math.abs(dx) < want - 30) { a.x -= Math.sign(dx) * 90 * AG().sp * wdt; a.phase += wdt * 8; }
         else if (Math.abs(dx) > want + 60) { a.x += Math.sign(dx) * 90 * AG().sp * wdt; a.phase += wdt * 8; }
         a.x = clamp(a.x, 30, W - 30);
-        if (a.cool <= 0) { a.cool = rnd(1.4, 2.4) * AG().cd; agentShoot(a); }
+        if (a.cool <= 0) { a.cool = rnd(2, 3.2) * AG().cd; agentShoot(a); }
       } else {
+        const busy = S.agents.some(o => o !== a && o.wind > 0);
         if (a.wind > 0) {
-          a.wind -= wdt;
+          if (holding && Math.abs(dx) < 110) { a.wind = 0; agentHurt(a, -Math.sign(dx)); a.cool = rnd(1.4, 2.2) * AG().cd; G.flash = .5; sfx.good(); continue; }
+          a.wind -= dt;
           if (a.wind <= 0) {
-            if (Math.abs(dx) < 75) { if (holding) agentHurt(a, -Math.sign(dx)); else storyHit(); }
-            a.cool = rnd(1, 1.8) * AG().cd;
+            if (Math.abs(dx) < 75) storyHit();
+            a.cool = rnd(1.6, 2.6) * AG().cd;
           }
-        } else if (Math.abs(dx) > 55) { a.x += Math.sign(dx) * 130 * AG().sp * wdt; a.phase += wdt * 8; }
-        else if (a.cool <= 0) a.wind = .55;
+        } else if (Math.abs(dx) > 55) { a.x += Math.sign(dx) * 110 * AG().sp * wdt; a.phase += wdt * 8; }
+        else if (a.cool <= 0 && !busy) a.wind = [1.1, 1.4, 1.7][opts.agent];
       }
-      if (P.inv <= 0 && Math.abs(dx) < 20 && P.y < 40 && a.wind <= 0) storyHit();
     }
     moveBullets(wdt, true);
     if (!alive && !S.won) { S.won = true; S.cut2 = 2.5; toast('THEY RAN.', 'One last thing to do.', 2.5); }
@@ -1069,7 +1071,7 @@
       if (S.ch === 1) o.alpha = a.rez;
       if (a.st === 'dazed') { ctx.save(); ctx.translate(a.x, FY); ctx.scale(1, .75); ctx.translate(-a.x, -FY); person(a.x, FY, o); ctx.restore(); ctx.strokeStyle = `rgba(230,255,240,${.5 + Math.sin(G.time * 10) * .4})`; ctx.lineWidth = 2; ctx.strokeRect(a.x - 18, FY - 70, 36, 70); }
       else { shadow(a.x, 16); person(a.x + (a.stag > 0 ? rnd(-3, 3) : 0), FY, o); }
-      if (a.wind > 0) { ctx.fillStyle = '#ff4d6d'; ctx.font = 'bold 16px monospace'; ctx.fillText('!', a.x - 4, FY - 98); }
+      if (a.wind > 0) { ctx.fillStyle = Math.floor(G.time * 8) % 2 ? '#ff4d6d' : '#ffd36b'; ctx.font = 'bold 18px monospace'; ctx.textAlign = 'center'; ctx.fillText('HOLD STOP!', a.x, FY - 104); ctx.textAlign = 'left'; ctx.strokeStyle = 'rgba(255,77,109,.8)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(a.x, FY - 50, 40, -1.57, -1.57 + 6.28 * (a.wind / [1.1, 1.4, 1.7][opts.agent])); ctx.stroke(); }
     }
     if (S.shotA) { const o = agentLook({ face: -1, phase: 0 }); person(S.shotA.x, FY, o); ctx.fillStyle = '#ffd36b'; if (S.cut > 2.8) ctx.fillRect(S.shotA.x - 30, FY - 54, 14, 4); }
     // bullets
