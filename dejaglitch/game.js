@@ -42,7 +42,11 @@
     door:    { name: 'Door number swap', tier: 3 },
     clock:   { name: 'Backwards clock', tier: 3 },
     shadow:  { name: 'Lagging shadow', tier: 3 },
+    possess: { name: 'Stranger turns Agent', tier: 1 },
+    ripple:  { name: 'Liquid wall', tier: 2 },
+    spoon:   { name: 'Bending spoon', tier: 3 },
   };
+  const NG = 17;
   const LIGHTS = [200, 500, 800, 1100, 1400, 1700, 2000, 2300];
   const CODE_CH = '01<>{}#$%&*+=?/\\アイウエオカキクケコサシスセソ'.split('');
 
@@ -53,8 +57,8 @@
   function bestLine() {
     const f = (best.found || []).length;
     let s = '';
-    if (best.wins) s = `Escaped ${best.wins}× · best time ${fmt(best.time)} · glitches found ${f}/14`;
-    else if (best.sector > 0 || f) s = `Furthest: Sector ${best.sector + 1} · glitches found ${f}/14`;
+    if (best.wins) s = `Escaped ${best.wins}× · best time ${fmt(best.time)} · glitches found ${f}/${NG}`;
+    else if (best.sector > 0 || f) s = `Furthest: Sector ${best.sector + 1} · glitches found ${f}/${NG}`;
     $('bestLine').textContent = s;
   }
   const fmt = t => { t = Math.round(t); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); };
@@ -88,6 +92,8 @@
     glitch() { noise(.18, .06); tone(1200, .08, 'square', .03, -900); },
     jump() { tone(300, .12, 'triangle', .05, 300); },
     hit() { tone(90, .4, 'sawtooth', .08, -40); noise(.3, .08); },
+    shot() { tone(900, .09, 'square', .04, -700); noise(.06, .04); },
+    ring() { tone(1320, .08, 'square', .025); tone(1320, .08, 'square', .025, 0, .12); },
     slow() { tone(400, .35, 'sine', .05, -280); },
     sector() { [523, 659, 784, 1046].forEach((f, i) => tone(f, .2, 'square', .04, 0, i * .1)); },
   };
@@ -108,7 +114,7 @@
     if (k) { if (k === 'jump' && !keys.jump) jumpPressed = true; keys[k] = true; e.preventDefault(); }
     if (e.code === 'KeyP' || e.code === 'Escape') { if (G.mode === 'play') pause(); else if (G.mode === 'paused') resume(); }
     if (e.code === 'KeyM') toggleMute();
-    if ((e.code === 'Enter') && G.mode === 'title' && !document.querySelector('#how.show,#about.show')) startGame();
+    if ((e.code === 'Enter') && G.mode === 'title' && !document.querySelector('#how.show,#about.show,#pills.show')) startGame();
   });
   addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) keys[k] = false; });
   let jumpPressed = false;
@@ -126,7 +132,7 @@
   // ---------- state ----------
   const G = { mode: 'title', sector: 0, streak: 0, integrity: 3, patched: new Set(), anomaly: null, last: null,
     slow: 100, slowOn: false, time: 0, caught: 0, mistakes: 0, found: 0, flash: 0, shake: 0, toast: '', toastT: 0, toast2: '', firstLoop: true, hurtT: 0 };
-  let P, seg, walker, cat, agents, cam = 0, codeCols = [];
+  let P, seg, walker, cat, agents, bullets = [], rings = [], cam = 0, codeCols = [];
 
   function resetCodeCols() { codeCols = []; for (let i = 0; i < W / 16; i++) codeCols.push({ y: rnd(-H, 0), s: rnd(80, 220) }); }
   resetCodeCols();
@@ -151,20 +157,22 @@
 
   function newSegment() {
     seg = { t: 0, anomaly: G.anomaly, hinted: false };
-    P = { x: 130, y: 0, vy: 0, face: 1, maxX: 130, hist: [], phase: 0, inv: 0 };
+    P = { x: 130, y: 0, vy: 0, jumps: 0, face: 1, maxX: 130, hist: [], phase: 0, inv: 0 };
     walker = { x: 2050, phase: 0 };
     cat = { x: 1050, st: 'wait', a: 1, t: 0, phase: 0 };
-    agents = [];
+    agents = []; bullets = []; rings = [];
     if (G.sector >= 1) {
       const maxN = Math.min(3, 1 + Math.floor(G.sector / 2));
       const n = 1 + Math.floor(Math.random() * maxN);
-      for (let i = 0; i < n; i++) agents.push({ x: 850 + i * 560 + rnd(0, 220), st: 'idle', phase: 0, face: -1, rez: 0 });
+      for (let i = 0; i < n; i++) agents.push({ x: 850 + i * 560 + rnd(0, 220), st: 'idle', phase: 0, face: -1, rez: 0, cool: rnd(1, 2.5) });
     }
   }
 
-  function startGame() {
+  function startGame(diff) {
+    if (diff !== 'blue' && diff !== 'red') { showPanel('pills'); return; }
+    G.diff = diff;
     ac(); startHum();
-    Object.assign(G, { mode: 'play', sector: 0, streak: 0, integrity: 3, anomaly: null, last: null, slow: 100, time: 0, caught: 0, mistakes: 0, found: 0, flash: .6, firstLoop: true });
+    Object.assign(G, { mode: 'play', sector: 0, streak: 0, integrity: maxHP(), anomaly: null, last: null, slow: 100, time: 0, caught: 0, mistakes: 0, found: 0, flash: .6, firstLoop: true });
     G.patched = new Set();
     newSegment();
     hidePanels();
@@ -174,6 +182,7 @@
     sfx.glitch();
   }
 
+  function maxHP() { return G.diff === 'blue' ? 5 : 3; }
   function decide(dir) {
     const a = G.anomaly, correct = a ? dir === 'back' : dir === 'forward';
     G.firstLoop = false;
@@ -186,10 +195,10 @@
       } else toast('CLEAN LOOP', 'Nothing was off. Good call.', 1.8);
       sfx.good();
       if (G.streak >= REQ[G.sector]) {
-        G.sector++; G.streak = 0; G.firstLoop = true; G.integrity = 3;
+        G.sector++; G.streak = 0; G.firstLoop = true; G.integrity = maxHP();
         if (G.sector > best.sector && G.sector < REQ.length) { best.sector = G.sector; save(); }
         if (G.sector >= REQ.length) return win();
-        toast('SECTOR ' + (G.sector + 1) + ' · ' + SECTOR_NAMES[G.sector], G.sector === 1 ? 'Agents are here now. Jump them. Hold slow-mo to time it.' : 'Memorize the new look.', 4);
+        toast('SECTOR ' + (G.sector + 1) + ' · ' + SECTOR_NAMES[G.sector], G.sector === 1 ? 'Agents are here now. Jump them (tap jump again in the air).' : G.sector === 2 && G.diff === 'red' ? 'Agents shoot now. Slow-mo and jump the bullets.' : G.sector === 5 ? 'The phone is ringing. Get to it.' : 'Memorize the new look.', 4);
         sfx.sector();
       }
     } else {
@@ -206,9 +215,9 @@
   function caught() {
     G.integrity--; G.caught++; G.shake = .5; G.hurtT = .5; sfx.hit();
     if (G.integrity <= 0) {
-      G.integrity = 3; G.streak = 0; G.firstLoop = true; G.anomaly = null;
+      G.integrity = maxHP(); G.streak = 0; G.firstLoop = true; G.anomaly = null;
       toast('SYSTEM RESET', 'The Agents wiped your progress in this sector.', 3);
-    } else toast('AGENT CONTACT', 'Integrity ' + G.integrity + '/3. Restarting this loop.', 2.4);
+    } else toast('AGENT CONTACT', 'Integrity ' + G.integrity + '/' + maxHP() + '. Restarting this loop.', 2.4);
     G.flash = .6;
     const keep = G.anomaly; newSegment(); seg.anomaly = keep; P.inv = 1.2;
   }
@@ -218,8 +227,8 @@
     best.wins = (best.wins || 0) + 1;
     if (!best.time || G.time < best.time) best.time = G.time;
     best.sector = REQ.length - 1; save();
-    $('endTitle').textContent = 'You glitched out of the simulation.';
-    $('endText').innerHTML = `Time ${fmt(G.time)}<br>Glitches used: ${G.found}<br>Wrong calls: ${G.mistakes} · Agent hits: ${G.caught}<br>Glitch log: ${best.found.length}/14 found ever`;
+    $('endTitle').textContent = 'You answered the phone and glitched out.';
+    $('endText').innerHTML = `Time ${fmt(G.time)}<br>Glitches used: ${G.found}<br>Wrong calls: ${G.mistakes} · Agent hits: ${G.caught}<br>Pill: ${G.diff === 'blue' ? 'blue (easy)' : 'red'}<br>Glitch log: ${best.found.length}/${NG} found ever`;
     showPanel('end'); $('touch').classList.remove('on'); $('pauseBtn').classList.remove('on');
     sfx.sector();
   }
@@ -238,12 +247,15 @@
     const p = document.querySelector('.panel.show');
     if (G.mode === 'play') { pause(); return 1; }
     if (p && (p.id === 'how' || p.id === 'about')) { showPanel(returnTo); return 1; }
+    if (p && p.id === 'pills') { showPanel('title'); return 1; }
     if (G.mode === 'paused') { resume(); return 1; }
     if (G.mode === 'end') { toTitle(); return 1; }
     return 0;
   };
-  $('playBtn').onclick = startGame;
-  $('againBtn').onclick = startGame;
+  $('playBtn').onclick = () => startGame();
+  $('againBtn').onclick = () => startGame(G.diff);
+  $('bluePill').onclick = () => startGame('blue');
+  $('redPill').onclick = () => startGame('red');
   $('endTitleBtn').onclick = toTitle;
   $('quitBtn').onclick = toTitle;
   $('resumeBtn').onclick = resume;
@@ -276,9 +288,16 @@
     // player
     const mv = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
     P.x += mv * SPEED * dt; if (mv) { P.face = mv; P.phase += dt * 12; }
-    if (jumpPressed && P.y === 0) { P.vy = 640; sfx.jump(); }
+    if (jumpPressed) {
+      if (P.y === 0 && P.vy === 0) { P.vy = 640; P.jumps = 1; sfx.jump(); }
+      else if (P.jumps < 3) {
+        P.jumps++; P.vy = P.jumps === 2 ? 580 : 540;
+        rings.push({ x: P.x, y: P.y, t: 0 });
+        tone(P.jumps === 2 ? 500 : 700, .14, 'triangle', .05, 400);
+      }
+    }
     jumpPressed = false;
-    if (P.y > 0 || P.vy > 0) { P.y += P.vy * dt; P.vy -= 1500 * dt; if (P.y <= 0) { P.y = 0; P.vy = 0; } }
+    if (P.y > 0 || P.vy > 0) { P.y += P.vy * dt; P.vy -= 1500 * dt; if (P.y <= 0) { P.y = 0; P.vy = 0; P.jumps = 0; } if (P.y > 280) { P.y = 280; P.vy = Math.min(P.vy, 0); } }
     P.maxX = Math.max(P.maxX, P.x);
     if (P.maxX < 700 && P.x < 110) {
       P.x = 110;
@@ -295,6 +314,18 @@
     // walker
     walker.x -= 55 * wdt; walker.phase += wdt * 7;
 
+    // bullets
+    for (let i = bullets.length - 1; i >= 0; i--) {
+      const b = bullets[i];
+      b.trail.push(b.x); if (b.trail.length > 18) b.trail.shift();
+      b.x += b.vx * wdt;
+      if (b.x < cam - 100 || b.x > cam + W + 100) { bullets.splice(i, 1); continue; }
+      if (P.inv <= 0 && Math.abs(b.x - P.x) < 12 && P.y < b.h + 4 && P.y + 85 > b.h) { bullets.splice(i, 1); caught(); return; }
+    }
+    for (let i = rings.length - 1; i >= 0; i--) { rings[i].t += dt; if (rings[i].t > .45) rings.splice(i, 1); }
+    // payphone
+    if (G.sector === 5 && Math.floor(seg.t * 1.2) % 2 === 0 && Math.abs(P.x - (L - 190)) < 500) { if (!seg.rang || seg.t - seg.rang > .8) { seg.rang = seg.t; sfx.ring(); } }
+
     // cat
     if (cat.st === 'wait' && P.x > 520) { cat.st = 'walk'; cat.x = 1050; cat.a = 1; }
     else if (cat.st === 'walk') { cat.x -= 75 * wdt; cat.phase += wdt * 14; if (cat.x < 820) { cat.st = 'fade'; cat.t = 0; } }
@@ -302,7 +333,8 @@
     else if (cat.st === 'gone' && seg.anomaly === 'cat') { cat.t += wdt; if (cat.t > .7) { cat.st = 'walk'; cat.x = 1050; cat.a = 1; } }
 
     // agents
-    const spd = 110 + G.sector * 14;
+    const spd = (110 + G.sector * 14) * (G.diff === 'blue' ? .8 : 1);
+    const shoots = G.diff === 'red' && G.sector >= 2;
     for (const a of agents) {
       const dx = P.x - a.x;
       if (a.st === 'idle' && Math.abs(dx) < 520) { a.st = 'chase'; a.rez = .5; sfx.glitch(); }
@@ -311,6 +343,11 @@
         if (Math.abs(dx) > 8) a.x += a.face * spd * wdt;
         a.phase += wdt * 10;
         if (a.rez > 0) a.rez -= dt;
+        a.cool -= wdt;
+        if (shoots && a.cool <= 0 && Math.abs(dx) < 460 && Math.abs(dx) > 60) {
+          a.cool = rnd(1.7, 3.2) - G.sector * .1;
+          bullets.push({ x: a.x + a.face * 16, h: 52, vx: a.face * 520, trail: [] }); sfx.shot();
+        }
         if (P.inv <= 0 && Math.abs(dx) < 26 && P.y < 74) { caught(); return; }
       }
     }
@@ -380,6 +417,14 @@
     ctx.strokeStyle = th.seam; ctx.lineWidth = 1;
     for (let x = Math.floor(x0 / 60) * 60; x < x1; x += 60) { ctx.beginPath(); ctx.moveTo(x + .5, 100); ctx.lineTo(x + .5, 334); ctx.stroke(); }
     for (let y = 130; y < 334; y += 30) { ctx.beginPath(); ctx.moveTo(x0, y + .5); ctx.lineTo(x1, y + .5); ctx.stroke(); }
+    if (A === 'ripple') {
+      ctx.lineWidth = 2;
+      for (let k = 0; k < 5; k++) {
+        const r = ((t * 40 + k * 26) % 130);
+        ctx.strokeStyle = `rgba(220,255,240,${.5 * (1 - r / 130)})`;
+        ctx.beginPath(); ctx.ellipse(1040, 250, r * 1.5, r * .7, 0, 0, 7); ctx.stroke();
+      }
+    }
     // floor
     ctx.fillStyle = th.floor; ctx.fillRect(x0, FLOOR, x1 - x0, H - FLOOR);
     ctx.fillStyle = th.fl2;
@@ -470,6 +515,30 @@
       ctx.fillStyle = '#fff3a0'; ctx.beginPath(); ctx.arc(1940, 200, 9, 0, 7); ctx.fill();
     }
 
+    // cafe sign (spoon)
+    ctx.fillStyle = '#333'; ctx.fillRect(2058, 100, 3, 70);
+    ctx.fillStyle = '#f4ead6'; ctx.beginPath(); ctx.arc(2060, 196, 28, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#6b3d1f'; ctx.lineWidth = 3; ctx.stroke();
+    {
+      const bend = A === 'spoon' ? Math.min(1, t / 6) * 1.3 : 0;
+      ctx.save(); ctx.translate(2060, 212); ctx.strokeStyle = '#7d8590'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(0, -12, Math.sin(bend) * 14, -12 - Math.cos(bend) * 12); ctx.stroke();
+      ctx.fillStyle = '#7d8590'; ctx.beginPath(); ctx.ellipse(Math.sin(bend) * 16, -12 - Math.cos(bend) * 16, 5, 8, bend, 0, 7); ctx.fill();
+      ctx.restore();
+    }
+    ctx.fillStyle = '#6b3d1f'; ctx.font = 'bold 9px monospace'; ctx.fillText('CAFE', 2049, 222);
+
+    // payphone (final sector)
+    if (G.sector === 5) {
+      const px = L - 190, ringing = Math.floor(t * 1.2) % 2 === 0;
+      ctx.fillStyle = '#1b1f22'; ctx.fillRect(px - 26, 250, 52, FLOOR - 250 + 30);
+      ctx.fillStyle = '#c0c6cc'; ctx.fillRect(px - 18, 270, 36, 70);
+      ctx.fillStyle = '#111'; ctx.fillRect(px - 14, 274, 10, 40);
+      for (let i = 0; i < 9; i++) { ctx.fillStyle = '#333'; ctx.fillRect(px + 2 + (i % 3) * 5, 284 + Math.floor(i / 3) * 7, 3, 4); }
+      ctx.fillStyle = '#3dff86'; ctx.font = 'bold 10px monospace'; ctx.fillText('PHONE', px - 15, 264);
+      if (ringing) { ctx.strokeStyle = 'rgba(61,255,134,.8)'; ctx.lineWidth = 2; for (let k = 1; k <= 3; k++) { ctx.beginPath(); ctx.arc(px - 9, 290, 10 + k * 7, -2.4, -.8); ctx.stroke(); } }
+    }
+
     // exit sign
     ctx.fillStyle = '#333'; ctx.fillRect(2198, 100, 4, 24); ctx.fillRect(2258, 100, 4, 24);
     ctx.fillStyle = '#0f6b33'; ctx.fillRect(2170, 122, 120, 38);
@@ -486,6 +555,9 @@
     if (A === 'clip') wo.sunk = 46;
     if (A !== 'clip') shadow(walker.x, 16);
     person(walker.x, FY, wo);
+    if (A === 'possess' && (t % 3) > 2.35) {
+      Object.assign(wo, { coat: '#22252b', pants: '#1b1d22', hair: '#1c1c1c', shades: '#000', tie: true, ear: true, long: false });
+    }
     if (A === 'clones') { shadow(walker.x + 44, 16); person(walker.x + 44, FY, wo); }
 
     // cat
@@ -525,6 +597,17 @@
       if (flick) { ctx.fillStyle = 'rgba(61,255,134,.6)'; ctx.fillRect(a.x - 14, FY - 90 + Math.random() * 80, 28, 3); }
       ctx.globalAlpha = 1;
     }
+    for (const b of bullets) {
+      b.trail.forEach((x, i) => {
+        if (G.slowOn) { ctx.strokeStyle = `rgba(200,255,220,${i / 40})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(x, FY - b.h, 3 + (18 - i) * .5, 6 + (18 - i), 0, 0, 7); ctx.stroke(); }
+        else { ctx.fillStyle = `rgba(255,220,120,${i / 36})`; ctx.fillRect(x - 2, FY - b.h - 1, 4, 2); }
+      });
+      ctx.fillStyle = '#ffd36b'; ctx.fillRect(b.x - 4, FY - b.h - 2, 8, 4);
+    }
+    for (const r of rings) {
+      const k = r.t / .45; ctx.strokeStyle = `rgba(61,255,134,${1 - k})`; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(r.x, FY - r.y, 14 + k * 26, 4 + k * 6, 0, 0, 7); ctx.stroke();
+    }
     // player shadow
     let sx = P.x;
     if (seg.anomaly === 'shadow' && P.hist.length) sx = P.hist[0].x;
@@ -544,7 +627,7 @@
     ctx.fillStyle = '#3dff86'; ctx.font = 'bold 15px monospace';
     ctx.fillText(`SECTOR ${G.sector + 1}/6  LOOP ${G.streak}/${REQ[G.sector]}`, 20, 31);
     ctx.font = '11px monospace'; ctx.fillStyle = '#9fe8b8'; ctx.fillText('INTEGRITY', 20, 50);
-    for (let i = 0; i < 3; i++) { ctx.fillStyle = i < G.integrity ? '#3dff86' : '#123d22'; ctx.fillRect(92 + i * 16, 41, 12, 10); }
+    for (let i = 0; i < maxHP(); i++) { ctx.fillStyle = i < G.integrity ? '#3dff86' : '#123d22'; ctx.fillRect(92 + i * 16, 41, 12, 10); }
     ctx.fillStyle = '#9fe8b8'; ctx.fillText('SLOW-MO', 160, 50);
     ctx.fillStyle = '#123d22'; ctx.fillRect(220, 42, 80, 8);
     ctx.fillStyle = G.slowOn ? '#d8ffe4' : '#3dff86'; ctx.fillRect(220, 42, 80 * G.slow / 100, 8);
