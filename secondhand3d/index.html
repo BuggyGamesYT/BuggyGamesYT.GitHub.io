@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#000000" />
+<title>Secondhand 3D · Buggy Games YT</title>
+<meta name="description" content="A $1 cartridge from a yard sale, now in 3D. Save file 1 belongs to someone else. Don't let the statue get behind you. A glitch horror game by Buggy Games YT." />
+<link rel="icon" href="icon.png" />
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #000; color: #ddd; overflow: hidden;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Roboto Mono", "Courier New", monospace;
+    user-select: none; -webkit-user-select: none; touch-action: none; overscroll-behavior: none; }
+  canvas#cv { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; image-rendering: pixelated; image-rendering: crisp-edges; background: #000; display: block; }
+  #fx { position: fixed; inset: 0; pointer-events: none; z-index: 3; background: repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1px, transparent 1px 3px); }
+  #fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 6; transition: opacity .45s; }
+  #fade.on { opacity: 1; }
+  #hud { position: fixed; left: max(12px, env(safe-area-inset-left)); top: max(10px, env(safe-area-inset-top)); z-index: 5; pointer-events: none; display: flex; gap: 14px; align-items: center; font-size: 15px; text-shadow: 0 2px 0 #000; }
+  #hearts { color: #e04848; letter-spacing: 2px; font-size: 20px; }
+  #hearts .e { color: #3a1d1d; }
+  #hudItems { color: #e8d9a8; }
+  #floorTag { position: fixed; right: max(14px, env(safe-area-inset-right)); top: max(10px, env(safe-area-inset-top)); z-index: 5; font-size: 18px; letter-spacing: 3px; color: #9fc6e8; text-shadow: 0 2px 0 #000; pointer-events: none; }
+  #prompt { position: fixed; left: 50%; bottom: 30%; transform: translateX(-50%); z-index: 5; font-size: 14px; color: #fff; background: rgba(0,0,0,.6); border: 1px solid #555; padding: 4px 10px; display: none; pointer-events: none; letter-spacing: 1px; }
+  #prompt.on { display: block; }
+  .panel { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.78); z-index: 20; padding: 16px; }
+  .panel.show { display: flex; }
+  .box { width: 100%; max-width: 440px; max-height: 94vh; overflow: auto; background: #0b0b0d; border: 2px solid #3a3a3a; padding: 20px; text-align: center; }
+  h1 { margin: 6px 0 2px; font-size: 30px; letter-spacing: 3px; color: #eee; text-shadow: -2px 0 #d64541, 2px 0 #1f9e8f; }
+  h2 { margin: 0 0 14px; font-size: 16px; color: #ccc; letter-spacing: 1px; font-weight: 400; }
+  p { font-size: 14px; line-height: 1.5; color: #aaa; margin: 10px 0; }
+  .b { display: inline-block; font: inherit; font-size: 15px; color: #000; background: #ddd; border: 0; padding: 11px 18px; cursor: pointer; margin: 5px; text-decoration: none; }
+  .b.alt { background: transparent; color: #aaa; border: 1px solid #444; }
+  .b:active { transform: scale(.97); }
+  .cart { position: relative; width: 210px; height: 190px; margin: 6px auto 14px; background: linear-gradient(#8d8d92, #6f6f75); border-radius: 6px 6px 3px 3px; box-shadow: 0 10px 30px rgba(0,0,0,.6), inset 0 2px 0 rgba(255,255,255,.2); }
+  .cart:before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 22px; background: repeating-linear-gradient(90deg, #7a7a80 0 6px, #66666b 6px 9px); border-radius: 6px 6px 0 0; }
+  .cart:after { content: ""; position: absolute; left: 22px; right: 22px; bottom: -10px; height: 12px; background: #4d4d52; border-radius: 0 0 3px 3px; }
+  .label { position: absolute; left: 20px; right: 20px; top: 34px; bottom: 22px; background: #efe6cf; border-radius: 2px; transform: rotate(-1.2deg); box-shadow: inset 0 0 18px rgba(120,90,40,.35); display: flex; align-items: center; justify-content: center; flex-direction: column; }
+  .label .hand { font-family: "Permanent Marker", "Marker Felt", "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive; font-size: 25px; color: #1a1a1a; transform: rotate(-4deg); letter-spacing: 1px; }
+  .label .tape { position: absolute; top: -6px; left: 40%; width: 44px; height: 14px; background: rgba(255,255,230,.55); transform: rotate(6deg); }
+  .label .price { position: absolute; right: -8px; bottom: 10px; background: #ffd23f; color: #333; font-size: 12px; padding: 3px 6px; border-radius: 50%; transform: rotate(14deg); font-family: Arial, sans-serif; font-weight: 700; }
+  .label .small { font-size: 10px; color: #8a7a5a; margin-top: 6px; }
+  .slot { display: block; width: 100%; text-align: left; font: inherit; font-size: 16px; color: #ddd; background: #111; border: 1px solid #333; padding: 12px 14px; margin: 8px 0; cursor: pointer; }
+  .slot:active, .slot:focus-visible { border-color: #1f9e8f; outline: none; }
+  .slot b { color: #666; margin-right: 8px; }
+  .slot small { display: block; color: #777; font-size: 12px; margin-top: 3px; padding-left: 22px; }
+  #filesMsg { min-height: 20px; color: #d64541; font-size: 13px; }
+  .row { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+  #confirm { display: none; border: 1px solid #522; padding: 10px; margin-top: 8px; }
+  #confirm.show { display: block; }
+  input#nameIn { font: inherit; font-size: 22px; text-transform: uppercase; letter-spacing: 3px; width: 100%; max-width: 260px; background: #000; color: #eee; border: 1px solid #555; padding: 10px; text-align: center; outline: none; user-select: text; -webkit-user-select: text; }
+  #nameMsg { color: #d64541; min-height: 20px; font-size: 13px; }
+  ul.help { text-align: left; font-size: 14px; color: #bbb; line-height: 1.7; padding-left: 18px; }
+  .k { display: inline-block; border: 1px solid #555; padding: 0 5px; font-size: 12px; color: #eee; }
+  #dlg { position: fixed; display: none; z-index: 8; left: 50%; transform: translateX(-50%); bottom: max(16px, env(safe-area-inset-bottom)); width: min(92vw, 640px); min-height: 92px; background: linear-gradient(180deg, #1d1934 0%, #100d1e 100%); border: 3px solid #eadfc2; border-radius: 7px; padding: .6em .9em 1.2em; color: #f2ecdc; line-height: 1.4; font-size: 16px;
+    box-shadow: 0 0 0 3px #0a0810, inset 0 0 0 2px #4b406c, 0 6px 0 3px rgba(0,0,0,.45); text-shadow: 0 2px 0 #000; }
+  #dlg.show { display: block; }
+  #dlg.glitchy { animation: jit 3s infinite steps(1); }
+  @keyframes jit { 0%, 96%, 100% { transform: translateX(-50%); } 97% { transform: translateX(calc(-50% + 3px)); } 98% { transform: translateX(calc(-50% - 2px)) skewX(4deg); } }
+  #dlgWho { display: inline-block; color: #1c1206; background: #e8b830; font-size: .78em; margin-bottom: .3em; padding: 0 .45em; border-radius: 3px; text-shadow: none; letter-spacing: 1px; }
+  #dlgWho:empty { display: none; }
+  #dlgMore { position: absolute; right: .6em; bottom: .25em; color: #e8b830; animation: blink 1s infinite steps(1); }
+  @keyframes blink { 50% { opacity: 0; } }
+  #toast { position: fixed; left: 0; right: 0; top: 22%; text-align: center; z-index: 7; color: #fff; letter-spacing: 3px; font-size: 20px; text-shadow: 0 2px 0 #000, 0 0 8px #000; opacity: 0; transition: opacity .4s; pointer-events: none; padding: 0 12px; }
+  #toast.show { opacity: 1; }
+  #mapPanel { position: fixed; inset: 0; z-index: 15; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.72); }
+  #mapPanel.show { display: flex; }
+  #mapCv { width: min(86vw, 70vh); height: min(86vw, 70vh); image-rendering: pixelated; border: 2px solid #555; background: #0b0b0d; }
+  #mapName { position: absolute; top: max(14px, env(safe-area-inset-top)); left: 0; right: 0; text-align: center; letter-spacing: 3px; color: #ddd; }
+  /* touch */
+  #touch { position: fixed; inset: 0; z-index: 9; display: none; pointer-events: none; }
+  #touch.on { display: block; }
+  #lookZone, #moveZone { position: absolute; top: 0; bottom: 0; pointer-events: auto; touch-action: none; }
+  #moveZone { left: 0; width: 45%; }
+  #lookZone { right: 0; width: 55%; }
+  #stickBase { position: fixed; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; background: rgba(70,70,75,.3); border: 2px solid rgba(200,200,200,.35); display: none; pointer-events: none; z-index: 10; }
+  #stickBase.on { display: block; }
+  #stickKnob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; border-radius: 50%; background: rgba(210,210,215,.55); transform: translate(-50%,-50%); }
+  #stickHint { position: absolute; left: max(40px, env(safe-area-inset-left)); bottom: max(40px, env(safe-area-inset-bottom)); width: 110px; height: 110px; border-radius: 50%; border: 2px dashed rgba(200,200,200,.22); pointer-events: none; }
+  #abtns { position: absolute; right: max(20px, env(safe-area-inset-right)); bottom: max(34px, env(safe-area-inset-bottom)); width: 176px; height: 140px; pointer-events: none; }
+  #abtns button { position: absolute; width: 74px; height: 74px; border-radius: 50%; border: 2px solid rgba(200,200,200,.4); background: rgba(150,30,40,.5); color: #fff; font: inherit; font-size: 22px; font-weight: 700; pointer-events: auto; touch-action: none; }
+  #btnA { right: 0; top: 0; }
+  #btnB { left: 0; bottom: 0; }
+  #abtns button.on { background: rgba(230,70,80,.85); }
+  #ss { position: absolute; left: 50%; transform: translateX(-50%); top: max(8px, env(safe-area-inset-top)); display: flex; gap: 14px; pointer-events: none; }
+  #ss button { pointer-events: auto; touch-action: none; font: inherit; font-size: 11px; letter-spacing: 1px; color: #bbb; background: rgba(60,60,65,.7); border: 1px solid rgba(200,200,200,.3); border-radius: 12px; padding: 7px 14px; }
+  #ss button.on { background: rgba(200,200,200,.5); color: #000; }
+  .credit { font-size: 11px; color: #555; margin-top: 14px; }
+  #endPanel .box { border-color: #2a3a4a; }
+  #perf { position: fixed; right: 6px; bottom: 4px; font-size: 10px; color: #555; z-index: 5; pointer-events: none; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="fx"></div>
+<div id="fade"></div>
+<div id="hud"><span id="hearts"></span><span id="hudItems"></span></div>
+<div id="floorTag"></div>
+<div id="prompt"></div>
+<div id="toast"></div>
+<div id="dlg"><div id="dlgWho"></div><div id="dlgText"></div><div id="dlgMore">▼</div></div>
+<div id="perf"></div>
+
+<div id="touch">
+  <div id="moveZone"><div id="stickHint"></div></div>
+  <div id="lookZone"></div>
+  <div id="stickBase"><div id="stickKnob"></div></div>
+  <div id="abtns"><button id="btnB">B</button><button id="btnA">A</button></div>
+  <div id="ss"><button id="btnSelect">SELECT</button><button id="btnStart">START</button></div>
+</div>
+
+<div id="mapPanel"><div id="mapName"></div><canvas id="mapCv" width="256" height="256"></canvas></div>
+
+<div class="panel show" id="cartPanel"><div class="box">
+  <div class="cart"><div class="label"><div class="tape"></div><div class="hand">SECONDHAND 3D</div><div class="small">don't play this</div><div class="price">$1</div></div></div>
+  <p>Same yard sale. Same dollar. This time the cartridge is heavier, like there's more inside it.</p>
+  <button class="b" id="insert">Insert cartridge</button>
+  <p class="credit">Headphones on. Best played at night.<br>A game by Buggy Games YT</p>
+</div></div>
+
+<div class="panel" id="filesPanel"><div class="box">
+  <h2 id="filesHead">SELECT A FILE</h2>
+  <button class="slot" id="slot1"></button>
+  <button class="slot" id="slot2"></button>
+  <div id="filesMsg"></div>
+  <div class="row"><button class="b alt" id="helpBtn">Controls</button><button class="b alt" id="eraseBtn">Erase cartridge</button></div>
+  <div id="confirm"><p>Erase every file on the cartridge?</p><div class="row"><button class="b" id="eraseYes">Erase</button><button class="b alt" id="eraseNo">Keep</button></div></div>
+</div></div>
+
+<div class="panel" id="namePanel"><div class="box">
+  <h2>ENTER YOUR NAME</h2>
+  <form id="nameForm"><input id="nameIn" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="NAME" />
+  <div id="nameMsg"></div>
+  <div class="row"><button class="b" type="submit">Start</button><button class="b alt" type="button" id="nameBack">Back</button></div></form>
+</div></div>
+
+<div class="panel" id="pausePanel"><div class="box">
+  <h2>PAUSED</h2>
+  <p id="pStats"></p>
+  <div class="row"><button class="b" id="pResume">Resume</button><button class="b alt" id="pSound">Sound: on</button></div>
+  <div class="row"><button class="b alt" id="pSens">Camera speed: normal</button><button class="b alt" id="pInv">Invert camera: off</button></div>
+  <div class="row"><button class="b alt" id="pHelp">Controls</button><button class="b alt" id="pQuit">Save &amp; quit</button></div>
+</div></div>
+
+<div class="panel" id="helpPanel"><div class="box">
+  <h2>CONTROLS</h2>
+  <ul class="help">
+    <li><span class="k">WASD</span> or arrows: walk</li>
+    <li>Mouse (click the game first) or <span class="k">Q</span>/<span class="k">E</span>: turn the camera</li>
+    <li><span class="k">J</span> or <span class="k">Z</span> A: talk, read, open. Hold A while walking to run</li>
+    <li><span class="k">K</span> <span class="k">X</span> <span class="k">Space</span> B: sword. Hold B, then let go: spin attack</li>
+    <li><span class="k">Enter</span> <span class="k">Esc</span> START: pause</li>
+    <li><span class="k">Tab</span> <span class="k">M</span> SELECT: map</li>
+    <li>Phone: left thumb anywhere on the left side to move, drag on the right side to look, A and B buttons, START and SELECT at the top.</li>
+    <li>Controllers work too.</li>
+    <li>The statue only moves when you're not looking at it. Keep it on screen.</li>
+  </ul>
+  <button class="b" id="helpClose">OK</button>
+</div></div>
+
+<div class="panel" id="endPanel"><div class="box">
+  <h1>SECONDHAND</h1>
+  <h2 id="endHead">THANK YOU FOR PLAYING, WREN.</h2>
+  <p>Wren went home.<br>You're the one under the dock now.</p>
+  <p id="endStats"></p>
+  <button class="b" id="endTitle">Back to the files</button>
+  <p class="credit">A game by Buggy Games YT</p>
+</div></div>
+
+<script src="music.js"></script>
+<script src="audio.js"></script>
+<script type="module" src="game.js"></script>
+</body>
+</html>
