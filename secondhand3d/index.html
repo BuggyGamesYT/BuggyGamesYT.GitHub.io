@@ -12,8 +12,7 @@
   html, body { margin: 0; height: 100%; background: #000; color: #ddd; overflow: hidden;
     font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Roboto Mono", "Courier New", monospace;
     user-select: none; -webkit-user-select: none; touch-action: none; overscroll-behavior: none; }
-  canvas#cv { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; image-rendering: pixelated; image-rendering: crisp-edges; background: #000; display: block; }
-  #fx { position: fixed; inset: 0; pointer-events: none; z-index: 3; background: repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1px, transparent 1px 3px); }
+  canvas#cv { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; background: #000; display: block; }
   #fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 6; transition: opacity .45s; }
   #fade.on { opacity: 1; }
   #hud { position: fixed; left: max(12px, env(safe-area-inset-left)); top: max(10px, env(safe-area-inset-top)); z-index: 5; pointer-events: none; display: flex; gap: 14px; align-items: center; font-size: 15px; text-shadow: 0 2px 0 #000; }
@@ -85,6 +84,7 @@
   #ss { position: absolute; left: 50%; transform: translateX(-50%); top: max(8px, env(safe-area-inset-top)); display: flex; gap: 14px; pointer-events: none; }
   #ss button { pointer-events: auto; touch-action: none; font: inherit; font-size: 11px; letter-spacing: 1px; color: #bbb; background: rgba(60,60,65,.7); border: 1px solid rgba(200,200,200,.3); border-radius: 12px; padding: 7px 14px; }
   #ss button.on { background: rgba(200,200,200,.5); color: #000; }
+  @media (max-width: 560px) { #ss { top: max(40px, calc(env(safe-area-inset-top) + 32px)); } }
   .credit { font-size: 11px; color: #555; margin-top: 14px; }
   #endPanel .box { border-color: #2a3a4a; }
   #perf { position: fixed; right: 6px; bottom: 4px; font-size: 10px; color: #555; z-index: 5; pointer-events: none; }
@@ -92,7 +92,6 @@
 </head>
 <body>
 <canvas id="cv"></canvas>
-<div id="fx"></div>
 <div id="fade"></div>
 <div id="hud"><span id="hearts"></span><span id="hudItems"></span></div>
 <div id="floorTag"></div>
