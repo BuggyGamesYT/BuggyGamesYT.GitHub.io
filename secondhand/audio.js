@@ -32,6 +32,7 @@ function init() {
     waves.p12 = pulse(0.125); waves.p25 = pulse(0.25);
     waves.organ = mk(k => [0, 1, 0.5, 0.3, 0.25, 0, 0.12, 0, 0.1][k] || 0, 9);
     waves.box = mk(k => [0, 1, 0, 0.35, 0, 0.12, 0, 0, 0.06][k] || 0, 9);
+    waves.choir = mk(k => [0, 1, 0.62, 0.42, 0.18, 0.3, 0.16, 0.08, 0.05, 0.03][k] || 0, 10); // soft 'aah'
   } catch (e) { ctx = null; A.ctx = null; return false; }
   return true;
 }
@@ -222,6 +223,14 @@ def('mimic', vol => { const t = T0(); for (let i = 0; i < 4; i++) note(sfxBus, t
 def('drip', vol => { const t = T0(), f = rnd(1100, 1900); note(ambBus, t, f, 0.12, 'sine', 0.06 * (vol || 1), 0, 'pluck', f * 0.55); note(ambBus, t + 0.21, f * 0.98, 0.1, 'sine', 0.018 * (vol || 1), 0, 'pluck', f * 0.5); }, 0.3);
 def('lowhp', () => { const t = T0(); note(sfxBus, t, 1568, 0.07, 'p25', 0.045, 0, 'pluck'); note(sfxBus, t + 0.11, 1318, 0.07, 'p25', 0.04, 0, 'pluck'); }, 0.3);
 def('dash', () => noise(sfxBus, T0(), 0.25, 0.12, 'bandpass', 500, 1, 2000, 0.03), 0.3);
+// ---- PART 1 ----
+def('warp', () => { const t = T0(); note(sfxBus, t, 220, 1.1, 'sine', 0.07, 0, 'swell', 1760); note(sfxBus, t, 330, 1.1, 'p12', 0.03, 12, 'swell', 2640); for (let i = 0; i < 8; i++) note(sfxBus, t + 0.6 + i * 0.05, mtof(84 + (i % 4) * 3), 0.12, 'sine', 0.04, 0, 'pluck'); noise(sfxBus, t, 1.2, 0.07, 'bandpass', 3000, 6, 9000, 0.9); }, 0.5);
+def('scrape', vol => { const t = T0(), v = vol || 1; noise(sfxBus, t, 0.55, 0.16 * v, 'bandpass', 260, 4, 150, 0.08); noise(sfxBus, t, 0.5, 0.06 * v, 'bandpass', 1300, 8, 700, 0.1); note(sfxBus, t, 55, 0.5, 'saw', 0.035 * v, 0, null, 49); }, 0.35);
+def('fire', vol => { const t = T0(), v = vol || 1; noise(sfxBus, t, 1.4, 0.22 * v, 'lowpass', 500, 1, 2600, 0.25); for (let i = 0; i < 9; i++) noise(sfxBus, t + Math.random() * 1.2, 0.03, 0.12 * v, 'highpass', 3000 + Math.random() * 3000); }, 0.6);
+def('arrow', () => { const t = T0(); note(sfxBus, t, 180, 0.12, 'tri', 0.1, 0, 'pluck', 120); noise(sfxBus, t + 0.02, 0.16, 0.12, 'bandpass', 2200, 2, 5200, 0.02); }, 0.08);
+def('tagFall', () => { const t = T0(); note(sfxBus, t, 1400, 0.5, 'sine', 0.035, 0, null, 500); }, 0.1);
+def('toll', () => { const t = T0(); [[36, 0.24], [43, 0.12], [48, 0.08], [51.2, 0.06], [55, 0.035]].forEach(([m, v]) => note(sfxBus, t, mtof(m), 5, 'sine', v, 0, 'pluck')); noise(sfxBus, t, 1.6, 0.18, 'lowpass', 260, 2); }, 1);
+def('tv', () => { const t = T0(); note(sfxBus, t, 15600, 2.5, 'sine', 0.008, 0, null); noise(sfxBus, t, 0.4, 0.06, 'highpass', 4000); }, 1);
 def('splash', () => { const t = T0(); noise(sfxBus, t, 0.3, 0.12, 'bandpass', 900, 1, 300); }, 0.3);
 
 // ======================= ambience =======================

@@ -3,7 +3,7 @@
 'use strict';
 const RW = 16, RH = 11;
 // tiles the player cannot walk through
-const SOLID = new Set('TRHDfPrM~BCx#LGYKngaUzqEVFJtZue'.split(''));
+const SOLID = new Set('TRHDfPrM~BCx#LGYKngaUzqEVFJtZuehjIWX'.split(''));
 const WARP = new Set(['O', '<', '>']);
 const COND = new Set(['L', 'G', 'Y', 'Z']); // solid until opened
 
@@ -763,6 +763,169 @@ room('void', { area: 'void', gx: 0, gy: 0, depth: 10, name: '', song: 'void', ma
   'xxxxxxxxxxxxxxxx'],
   npcs: [{ id: 'wren', tx: 7, ty: 4, dir: 0, pal: 'wren', ghost: true, ox: 8 }] });
 
+// =====================================================================
+// PART 1 · a separate chapter (area "p1"), played from its own file slot.
+// Rooms are linked by edges where you walk, and by one-way "jumps" that the
+// chapter script fires (a TV, a doorway, a warp, an escape). check_world.js
+// follows both. Original story beats, Secondhand's own places and people.
+// =====================================================================
+const SKYW = 'hhhhhhhhhhhhhhhh';
+room('p1_dark', { area: 'p1', gx: 0, gy: 0, name: 'A DARK ROOM', song: 'p1dim', pal: 'dim', dark: true, light: 26, ambient: 0.9, map: [
+  'xxxxxxxxxxxxxxxx',
+  'xxxxxxxxxxxxxxxx',
+  'xxxx########xxxx',
+  'xxxx#F__V__#xxxx',
+  'xxxx#EE____#xxxx',
+  'xxxx#EE____#xxxx',
+  'xxxx#______#xxxx',
+  'xxxx#______#xxxx',
+  'xxxx#______#xxxx',
+  'xxxx########xxxx',
+  'xxxxxxxxxxxxxxxx'],
+  tv: [8, 3],
+  jumps: [{ on: 'tv', to: 'p1_sky1', ax: 3, ay: 5 }],
+  signs: { '5,3': [['', 'A shelf. One game is missing. There is a clean rectangle in the dust where it was.']],
+    '5,5': [['', 'A bed. The blanket still has a price sticker on it.'], ['', '$1.']], '6,4': [['', 'The pillow is cold.']] } });
+room('p1_sky1', { area: 'p1', gx: 0, gy: 2, name: 'ABOVE THE CLOUDS', song: 'p1sky', sky: true, map: [
+  SKYW,
+  'hhkkkkhhhkkkkkhh',
+  'hkkkkkkkkkkkkkkh',
+  'hkkkkkkkkkkhkkkh',
+  'hkkkhkkkkkkkkkkk',
+  'hkkkkkkkkkkkkkkk',
+  'hkkkkkkkkhkkkkkk',
+  'hkkhkkkkkkkkkkkh',
+  'hkkkkkkkkkkkkkkh',
+  'hhkkkkhhkkkkkhhh',
+  SKYW],
+  debris: [['chair', 2, 1.4], ['fence', 12.5, 1.2], ['frame', 6, 9.6], ['cart', 13, 8.8]] });
+room('p1_sky2', { area: 'p1', gx: 1, gy: 2, name: 'ABOVE THE CLOUDS', song: 'p1sky', sky: true, map: [
+  SKYW,
+  'hhhkkkkkkkkkhhhh',
+  'hkkkkkkkkkkkkkhh',
+  'hkkkkkkkkkkkkkkh',
+  'kkkkkkkkkkkkkkkI',
+  'kkkkkkkkkkkkkkkk',
+  'kkkkkkkkkkkkkkkI',
+  'hkkkkkkkkkkkkkkh',
+  'hkkkkkkkkkkkkkkh',
+  'hhhkkkkkkkkkkhhh',
+  SKYW],
+  house: [5.5, 1.2],
+  debris: [['mailbox', 1.5, 8.9], ['chair', 11.5, 9.4], ['bike', 13.2, 1.6]] });
+room('p1_hall', { area: 'p1', gx: 2, gy: 2, name: 'THE GOLD HALL', song: 'p1hall', pal: 'gold', map: [
+  '#######__#######',
+  '#I_____NN_____I#',
+  '#_jjjj_NN_jjjj_#',
+  '#______NN______#',
+  '#I_jjj_NN_jjj_I#',
+  'NNNNNNNNN______#',
+  '#I_jjj____jjj_I#',
+  '#______________#',
+  '#_jjjj____jjjjn#',
+  '#I____________I#',
+  '################'],
+  signs: { '14,8': [['', 'A guest book on a stand.'], ['', 'Every line is signed with the same name: {N}.'], ['', 'The ink on the last one is still wet.']] } });
+room('p1_wood1', { area: 'p1', gx: 2, gy: 1, name: 'THE WOODEN ROOMS', song: 'p1dim', pal: 'dwood', dark: true, light: 62, map: [
+  '#######__#######',
+  '#F____________F#',
+  '#______________#',
+  '#___##____##___#',
+  '#______________#',
+  '#______________#',
+  '#______________#',
+  '#___##____##___#',
+  '#______________#',
+  '#F____________F#',
+  '#######__#######'],
+  stone: true,
+  jumps: [{ on: 'warp', to: 'p1_wood3', ax: 7, ay: 7 }] });
+room('p1_wood2', { area: 'p1', gx: 2, gy: 0, name: 'THE WOODEN ROOMS', song: 'p1dim', pal: 'dwood', dark: true, light: 62, map: [
+  '################',
+  '#######y########',
+  '#______________#',
+  '#_F__________F_#',
+  '#______________#',
+  '#____##__##____#',
+  '#______________#',
+  '#______________#',
+  '#_F__________F_#',
+  '#______________#',
+  '#######__#######'],
+  stone: true,
+  jumps: [{ at: [7, 1], to: 'p1_wood3', ax: 7, ay: 7 }] });
+room('p1_wood3', { area: 'p1', gx: 3, gy: 0, name: 'THE WOODEN ROOMS', song: 'p1dim', pal: 'dwood', dark: true, light: 62, map: [
+  '################',
+  '################',
+  '##____________##',
+  '##____________##',
+  '##____________##',
+  '##____________##',
+  '##____________##',
+  '##____________##',
+  '##____________##',
+  '################',
+  '################'],
+  jumps: [{ on: 'warp', to: 'p1_wood1', ax: 7, ay: 5 }, { on: 'face', to: 'p1_sand', ax: 7, ay: 8 }] });
+room('p1_sand', { area: 'p1', gx: 3, gy: 2, name: 'THE SAND ROOM', song: null, pal: 'sand', map: [
+  '#######_########',
+  '#######W########',
+  '#SSSSSSSSSSSSSS#',
+  '#SSSSSSSSSSSSSS#',
+  '#SSSSSSSSSSSSSS#',
+  '#SSSSSSSSSSSSSS#',
+  '#SSSSSSSSSSSSSS#',
+  '#SSnSSSSSSSSSSS#',
+  '#SSSSSSSSSSSSSS#',
+  '#SSSSSSSSSSSSSS#',
+  '################'],
+  items: [{ id: 'okey', tx: 7, ty: 6, uid: 'p1:okey', still: true }],
+  signs: { '3,7': [['', 'Written in the sand, in a kid\'s handwriting:'], ['', '"IT ONLY COMES WHEN NOBODY IS LOOKING."']] } });
+room('p1_corr0', { area: 'p1', gx: 3, gy: 1, name: 'THE LONG CORRIDOR', song: 'p1corr', pal: 'stone', dark: true, light: 60, ambient: 0.8, cam: true, map: [
+  '################',
+  '################',
+  '################',
+  '################',
+  '#######_________',
+  '#######_________',
+  '#######_________',
+  '#######_########',
+  '#######_########',
+  '#######_########',
+  '#######_########'] });
+room('p1_corr', { area: 'p1', gx: 4, gy: 1, name: 'THE LONG CORRIDOR', song: 'p1corr', pal: 'stone', dark: true, light: 60, ambient: 0.8, cam: true, loop: 'ew', map: [
+  '################',
+  '################',
+  '################',
+  '################',
+  '________________',
+  '________________',
+  '________________',
+  '################',
+  '################',
+  '################',
+  '################'],
+  jumps: [{ on: 'escape', to: 'p1_square', ax: 7, ay: 8 }] });
+room('p1_square', { area: 'p1', gx: 4, gy: 2, name: 'MILLBROOK', song: 'p1night', night: true, map: [
+  'TTTTTTTxxTTTTTTT',
+  'T.RRR..==..RRRRT',
+  'T.HDH..==..HHDHT',
+  'T......==......T',
+  'T..,...==...,..T',
+  'x==============x',
+  'T......==......T',
+  'T.,...P==....,.T',
+  'T..ff..==..ff..T',
+  'T......==......T',
+  'TTTTTTTxxTTTTTTT'],
+  doors: { '3,2': [['', 'Locked. Every window in Millbrook is dark.']], '13,2': [['', 'Locked. There is a note on the door: "GONE TO THE SALE."']] },
+  jumps: [{ on: 'script', to: 'p1_arena', ax: 8, ay: 8 }] });
+room('p1_arena', { area: 'p1', gx: 5, gy: 2, name: 'THE RING', song: 'p1fight', arena: true, map: (() => {
+  const m = [];
+  for (let y = 0; y < RH; y++) { let s = ''; for (let x = 0; x < RW; x++) s += Math.hypot(x + 0.5 - 8, (y + 0.5 - 5.5) * 1.05) <= 5.05 ? 'A' : 'X'; m.push(s); }
+  return m;
+})() });
+
 const MEM = {
   3: { start: 'w3a', startArrive: [2, 5], stairs: 'w3c', stairsArrive: [10, 5] },
   6: { start: 'w6a', startArrive: [2, 5], stairs: 'w6c', stairsArrive: [12, 5] },
@@ -773,7 +936,7 @@ const MEM = {
 // =====================================================================
 // helpers
 // =====================================================================
-const AREA_NAMES = { over: 'MILLBROOK VALLEY', hollow: 'THE HOLLOW', cave: 'THE CAVE', mill: 'THE OLD MILL', mem3: 'B3', mem6: 'B6', mem9: 'B9', void: '' };
+const AREA_NAMES = { p1: 'PART 1', over: 'MILLBROOK VALLEY', hollow: 'THE HOLLOW', cave: 'THE CAVE', mill: 'THE OLD MILL', mem3: 'B3', mem6: 'B6', mem9: 'B9', void: '' };
 function walk(ch) { return !SOLID.has(ch); }
 function openings(map, side) {
   const out = [];

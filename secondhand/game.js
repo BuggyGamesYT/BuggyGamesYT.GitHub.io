@@ -25,7 +25,7 @@ let S = null; // current run (story or deep)
 let M = { visits: 0, lastPlayed: 0, wrenSeen: false, ended: false, endName: '', slot3Taps: 0, deepUnlocked: false, deepBest: 0 };
 try { const m = JSON.parse(localStorage.getItem(META) || 'null'); if (m && typeof m === 'object') M = Object.assign(M, m); } catch (e) {}
 function saveMeta() { try { localStorage.setItem(META, JSON.stringify(M)); } catch (e) {} }
-function save() { if (!S) return; try { localStorage.setItem(S.deep ? DEEPKEY : KEY, JSON.stringify(S)); } catch (e) {} }
+function save() { if (!S) return; try { localStorage.setItem(S.part1 ? 'secondhand-part1-v1' : S.deep ? DEEPKEY : KEY, JSON.stringify(S)); } catch (e) {} }
 function newSeed() { return (Math.random() * 4294967296) >>> 0; }
 function newRun(name) {
   return { v: 2, name, shards: { hollow: false, cave: false, mill: false }, bosses: { hollow: false, cave: false, mill: false },
@@ -109,6 +109,7 @@ function tileAt(rid, tx, ty) {
   else if (ch === 'G') { if (S.solved[rid]) ch = '_'; }
   else if (ch === 'Y') { if (r.memGate ? S.flags[r.memGate] : S.opened[rid + ':hatch']) ch = '>'; }
   else if (ch === 'O') { if (rid === 'oldmill' && !millOpen()) ch = 'Z'; }
+  else if (ch === 'W') { if (S.flags.p1door) ch = 'y'; }
   if (rid === 'lake' && tx === 6 && ty === 9 && S.flags.bellRung) ch = '>';
   return ch;
 }
@@ -258,6 +259,11 @@ const PALS = {
   hollow: { name: 'hollow', wall: '#5e4429', wall2: '#3a2816', top: '#3a2c1a', topHi: '#5e4a2e', moss: '#4f7f2c', floor: '#43392a', floor2: '#2f281b', floorHi: '#574b37', root: '#6e4c2a' },
   cave: { name: 'cave', wall: '#5b4f47', wall2: '#383029', top: '#3a322c', topHi: '#5c5047', moss: null, floor: '#3b332e', floor2: '#2a2420', floorHi: '#4d443d', floorMid: '#352e29' },
   mill: { name: 'mill', wall: '#70492a', wall2: '#3e2814', top: '#3e2814', topHi: '#6a4a28', moss: null, floor: '#94704a', floor2: '#6e5034', floorHi: '#b08a5c', plank: true },
+  dim: { name: 'dim', wall: '#4a4036', wall2: '#2a2420', top: '#1c1814', topHi: '#36302a', moss: null, floor: '#3e2e20', floor2: '#261a10', floorHi: '#52402c', plank: true },
+  gold: { name: 'gold', wall: '#c8963a', wall2: '#7a5418', top: '#5a3c14', topHi: '#a07434', moss: null, floor: '#b88a3c', floor2: '#7e5820', floorHi: '#e8c070', floorMid: '#a87a34' },
+  dwood: { name: 'dwood', wall: '#3e2616', wall2: '#1e120a', top: '#1a100a', topHi: '#3a2614', moss: null, floor: '#4a3020', floor2: '#28180e', floorHi: '#5e4028', plank: true },
+  sand: { name: 'sand', wall: '#c8a46a', wall2: '#8a6a3e', top: '#6a4e2a', topHi: '#a8844e', moss: null, floor: '#e6d29c', floor2: '#d2bb83', floorHi: '#f4e6bc' },
+  stone: { name: 'stone', wall: '#4a4a52', wall2: '#2a2a30', top: '#1c1c22', topHi: '#3a3a42', moss: null, floor: '#34343a', floor2: '#202026', floorHi: '#46464e', floorMid: '#2c2c32' },
   home: { name: 'home', wall: '#cbb996', wall2: '#a39274', top: '#4a3e32', topHi: '#6a5a48', moss: null, floor: '#7a5a3a', floor2: '#5a422a', floorHi: '#96724c', plank: true },
 };
 const PCACHE = {};
@@ -454,7 +460,7 @@ function graveT(x, y, tx, ty) {
   fr('#3e7a34', x + 2, y + 13, 3, 2); fr('#5aa043', x + 12, y + 13, 2, 2); fr('rgba(16,48,20,.3)', x + 3, y + 14, 11, 2);
 }
 function signT(x, y, tx, ty, r) {
-  if (r && r.pal) floorT(x, y, tx, ty, palFor(r)); else grass(x, y, tx, ty);
+  if (r && r.pal === 'sand') pathT(x, y, tx, ty, true); else if (r && r.pal) floorT(x, y, tx, ty, palFor(r)); else grass(x, y, tx, ty);
   fr('#2a1a0c', x + 6, y + 8, 4, 8); fr('#6b4320', x + 7, y + 9, 2, 7);
   fr('#2a1a0c', x + 1, y + 1, 14, 10); fr('#b8884e', x + 2, y + 2, 12, 8); fr('#d8aa6a', x + 2, y + 2, 12, 1); fr('#8a6234', x + 2, y + 9, 12, 1);
   fr('#6a4a24', x + 4, y + 4, 8, 1); fr('#6a4a24', x + 4, y + 6, 6, 1);
@@ -475,6 +481,7 @@ function pathT(x, y, tx, ty, sand) {
       if (side === 'e') { fr(GR.base, x + 16 - d, y + i, d, 1); fr(GR.dark, x + 15 - d, y + i, 1, 1); }
     }
   };
+  const rr_ = R(room); if (rr_ && rr_.pal) return; // indoor sand has no grass to bite in
   if (GRASSY.has(NB(tx, ty - 1)) && ty > 0) edge('n');
   if (GRASSY.has(NB(tx, ty + 1)) && ty < RH - 1) edge('s');
   if (GRASSY.has(NB(tx - 1, ty)) && tx > 0) edge('w');
@@ -702,7 +709,15 @@ function drawTile(ch, tx, ty, t, r) {
       break; }
     case 'z': { const p = palFor(r); fr('#000', x, y, 16, 16); fr(p.wall2, x, y, 16, 2); fr(p.top, x, y + 2, 16, 2); fr('rgba(40,40,60,.35)', x, y + 4, 16, 2); break; }
     case 'E': { floorT(x, y, tx, ty, palFor(r)); fr('#2a1a10', x, y, 16, 16); fr('#e8e0d0', x + 1, y + 1, 14, 5); fr('#ffffff', x + 2, y + 1, 5, 2); fr('#3a6ab0', x + 1, y + 6, 14, 9); fr('#5a8ad0', x + 1, y + 6, 14, 1); fr('#f2c84a', x + 4, y + 9, 3, 3); fr('#f2c84a', x + 10, y + 12, 3, 2); fr('#2a4a80', x + 1, y + 14, 14, 1); break; }
-    case 'V': { floorT(x, y, tx, ty, palFor(r)); fr('#0e0e10', x, y + 2, 16, 13); fr('#3a3a40', x + 1, y + 3, 14, 11); fr(Math.random() < 0.05 ? '#ffffff' : '#3d8b3d', x + 3, y + 5, 10, 7); fr('rgba(255,255,255,.18)', x + 3, y + 5, 10, 1); fr('#d64541', x + 7, y + 8, 1, 2); fr('#1a1a1e', x + 2, y + 14, 3, 2); fr('#1a1a1e', x + 11, y + 14, 3, 2); break; }
+    case 'k': break;
+    case 'h': cloudBankT(x, y, tx, ty); break;
+    case 'I': pillarT(x, y, tx, ty, r); break;
+    case 'j': pewT(x, y, tx, ty, r); break;
+    case 'N': carpetT(x, y, tx, ty, r); break;
+    case 'W': ornateDoorT(x, y, tx, ty, r, false); break;
+    case 'y': if (room === 'p1_sand') ornateDoorT(x, y, tx, ty, r, true); else doorwayT(x, y, tx, ty, r); break;
+    case 'A': case 'X': arenaT(x, y, tx, ty); break;
+    case 'V': if (room === 'p1_dark') { floorT(x, y, tx, ty, palFor(r)); tvScreenP1(x, y); break; } { floorT(x, y, tx, ty, palFor(r)); fr('#0e0e10', x, y + 2, 16, 13); fr('#3a3a40', x + 1, y + 3, 14, 11); fr(Math.random() < 0.05 ? '#ffffff' : '#3d8b3d', x + 3, y + 5, 10, 7); fr('rgba(255,255,255,.18)', x + 3, y + 5, 10, 1); fr('#d64541', x + 7, y + 8, 1, 2); fr('#1a1a1e', x + 2, y + 14, 3, 2); fr('#1a1a1e', x + 11, y + 14, 3, 2); break; }
     case 'F': { floorT(x, y, tx, ty, palFor(r)); fr('#2a1808', x, y, 16, 16); fr('#6b4320', x + 1, y + 1, 14, 14); fr('#3a2412', x + 1, y + 7, 14, 1);
       for (let i = 0; i < 4; i++) { const c = ['#d64541', '#3a7ad9', '#e8c23a', '#8a8a8a'][i]; fr(c, x + 2 + i * 3, y + 2, 2, 5); fr(c, x + 2 + i * 3, y + 9, 2, 5); fr(shade(c, 1.3), x + 2 + i * 3, y + 2, 1, 5); }
       break; }
@@ -826,6 +841,7 @@ const OVERSONG = { village: 'village', orchard: 'orchard', chapel: 'chapel', hig
 // which song a room plays, and how bent (corrupted) it sounds
 function songFor(rm) {
   if (!rm) return ['title', 0];
+  if (rm.area === 'p1') return [rm.song || null, rm.sky ? 0.7 : rm.stone ? 0.45 : rm.id === 'p1_wood3' ? 0.9 : 0];
   const c = C();
   if (rm.boss && !S.bosses[rm.area]) return ['boss', 0];
   if (rm.song === 'void') return ['void', 0.6];
@@ -917,7 +933,7 @@ btn('btnB', () => bDown(), () => { if (bHeld) bUp(); });
 let touchMode = matchMedia('(pointer: coarse)').matches;
 addEventListener('touchstart', () => { if (!touchMode) { touchMode = true; layout(); } }, { passive: true });
 document.addEventListener('click', e => { const t = e.target; if (t && t.classList && t.classList.contains('b') && AC) SFX.menu(); });
-cv.addEventListener('pointerdown', () => { audioInit(); if (mode === 'boot' || mode === 'dialog' || mode === 'card' || mode === 'map') onA(); });
+cv.addEventListener('pointerdown', () => { audioInit(); if (mode === 'boot' || mode === 'dialog' || mode === 'card' || mode === 'map' || mode === 'p1cine') onA(); });
 
 // ---------- layout ----------
 let scale = 3;
@@ -943,7 +959,8 @@ function layout() {
   const toast = $('toast');
   toast.style.top = (top + 22 * scale) + 'px';
   toast.style.fontSize = Math.max(12, Math.min(20, scale * 5.5)) + 'px';
-  touchEl.classList.toggle('on', touchMode && (mode === 'play' || mode === 'dialog' || mode === 'boot' || mode === 'card' || mode === 'map'));
+  touchEl.classList.toggle('on', touchMode && (mode === 'play' || mode === 'dialog' || mode === 'boot' || mode === 'card' || mode === 'map' || mode === 'p1cine'));
+  document.body.classList.toggle('p1', !!(S && S.part1) && (mode === 'play' || mode === 'dialog' || mode === 'map'));
 }
 addEventListener('resize', layout);
 
@@ -1022,6 +1039,7 @@ function mkFoe(type, x, y) {
 function enterRoom(name, x, y, opts) {
   opts = opts || {};
   const prevArea = room && R(room) ? R(room).area : null;
+  const prevRm = room && R(room) ? R(room) : null;
   const r = R(name);
   if (!r) { name = 'village'; x = 7.5 * 16; y = 6 * 16 + 8; }
   room = name; S.room = name; P.x = x; P.y = y; P.entryX = x; P.entryY = y; P.kx = P.ky = 0;
@@ -1050,6 +1068,7 @@ function enterRoom(name, x, y, opts) {
   // items
   for (const it of rm.items || []) {
     if (it.uid && S.taken[it.uid]) continue;
+    if (it.still) continue; // PART 1: shows up only when nobody is looking
     if (it.id === 'heart' && S.hearts >= S.maxHearts && Math.random() < 0.5) continue;
     items.push(Object.assign({}, it, { x: it.tx * 16 + 8, y: it.ty * 16 + 8 }));
   }
@@ -1070,13 +1089,16 @@ function enterRoom(name, x, y, opts) {
   playRoomMusic(rm);
   // toast
   const areaChanged = prevArea !== rm.area || opts.force;
-  if (name === 'void') showToast(corrupt('SAVE 01', 0.5));
+  if (rm.area === 'p1') {}
+  else if (name === 'void') showToast(corrupt('SAVE 01', 0.5));
   else if (rm.area === 'over') showToast(c >= 2 && Math.random() < 0.35 ? corrupt(rm.name, 0.4) : rm.name);
   else if (rm.gen && areaChanged) showToast((S.deep ? 'THE DEEP  ' : 'THE UNDERNEATH  ') + 'B' + rm.depth);
   else if (areaChanged) showToast(rm.name);
   if (rm.gen && S.deep) { for (const k of Object.keys(S.disc)) { const p = SHW.parseGen(k); if (p && p.f < rm.depth - 1) delete S.disc[k]; } }
   S.x = P.x; S.y = P.y;
   save();
+  if (rm.area === 'p1') { if (!rm.cam) { CAM.x = 0; CAM.y = 0; } p1Enter(name, rm, prevRm); return; }
+  CAM.x = 0; CAM.y = 0;
   roomIntro(name, rm, c);
 }
 function roomIntro(name, rm, c) {
@@ -1227,6 +1249,7 @@ function showToast(s, ms) {
 
 // ---------- A / B ----------
 function onA() {
+  if (mode === 'p1cine') { p1CineA(); return; }
   if (mode === 'boot') { if (bootT > 0.8) { SFX.ok(); openFiles(); } return; }
   if (mode === 'dialog') { dialogAdvance(); return; }
   if (mode === 'card') { if (cardT > 1.2 && cardDone) { const f = cardDone; cardDone = null; f(); } return; }
@@ -1234,6 +1257,7 @@ function onA() {
   if (mode === 'play') { interact(); return; }
 }
 function onB() {
+  if (mode === 'p1cine') { p1CineA(); return; }
   if (mode === 'dialog') { dialogAdvance(); return; }
   if (mode === 'card') { onA(); return; }
   if (mode === 'map') { mode = 'play'; layout(); return; }
@@ -1241,7 +1265,7 @@ function onB() {
   if (mode === 'play') { swing(); return; }
 }
 function onStart() {
-  if (mode === 'boot' || mode === 'card') { onA(); return; }
+  if (mode === 'boot' || mode === 'card' || mode === 'p1cine') { onA(); return; }
   if (mode === 'dialog') { dialogAdvance(); return; }
   if (mode === 'play' || mode === 'map') { mode = 'play'; openPause(); return; }
   if (mode === 'paused') { closePause(); return; }
@@ -1270,6 +1294,7 @@ function interact() {
   }
   const tx = clamp(Math.floor(ax / 16), 0, RW - 1), ty = clamp(Math.floor(ay / 16), 0, RH - 1);
   const ch = tileAt(room, tx, ty), r = R(room), k = tx + ',' + ty;
+  if (S.part1 && p1Interact(tx, ty, ch)) return true;
   if (r.memObj && r.memObj.tiles.includes(k)) {
     const first = !S.flags[r.memObj.flag];
     S.flags[r.memObj.flag] = true; save();
@@ -1315,6 +1340,7 @@ function openGroup(tx, ty) {
 }
 function tryOpen(tx, ty, viaA) {
   const ch = tileAt(room, tx, ty), r = R(room);
+  if (ch === 'W') { p1Door(viaA); return !!S.flags.p1door; }
   if (ch === 'L') {
     const area = r.area;
     if ((S.keys[area] || 0) > 0) { S.keys[area]--; openGroup(tx, ty); SFX.unlock(); burst(tx * 16 + 8, ty * 16 + 8, '#c9b04a'); showToast('UNLOCKED'); save(); return true; }
@@ -1477,7 +1503,8 @@ $('insert').onclick = () => {
 let bootT = 0;
 function storyS() { if (S && !S.deep) return S; return SAVED; }
 function openFiles() {
-  if (S && S.deep) { save(); S = SAVED; }
+  ZOOM.k = 1; CAM.x = 0; CAM.y = 0; P1.fade = 0; P1.fadeTo = 0; P1.lock = false; P1.burn = null; P1.fire = []; P1.zoomAnim = null; P1.bell = null;
+  if (S && (S.deep || S.part1)) { if (!S.done) save(); S = SAVED; }
   else if (S) SAVED = S;
   mode = 'files'; titleMusic(); SHA.ambientOff(); layout();
   ['pausePanel', 'endPanel', 'helpPanel'].forEach(id => $(id).classList.remove('show'));
@@ -1503,6 +1530,9 @@ function openFiles() {
     s4.style.display = '';
     s4.innerHTML = '<b>∞</b> THE DEEP<small>best: ' + (M.deepBest ? 'B' + M.deepBest : 'none yet') + (dr && dr.floor ? ' · in progress: B' + dr.floor : '') + '</small>';
   } else s4.style.display = 'none';
+  { let pr = null; try { pr = JSON.parse(localStorage.getItem('secondhand-part1-v1') || 'null'); } catch (e) {}
+    const rn = pr && pr.part1 && !pr.done && ROOMS[pr.room] ? ROOMS[pr.room].name : null;
+    $('slot5').innerHTML = '<b>✦</b> PART 1<small>' + (rn ? 'continue · ' + esc(rn) : M.p1Done ? 'finished · play it again' : 'a new chapter · its own file') + '</small>'; }
   filesPanel.classList.add('show');
 }
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]); }
@@ -1523,16 +1553,17 @@ $('slot3').onclick = () => {
     SFX.ok();
     try { localStorage.removeItem(KEY); } catch (e) {}
     S = null; SAVED = null;
-    M = { visits: M.visits || 1, lastPlayed: 0, wrenSeen: false, ended: false, endName: '', slot3Taps: 0, prevPlayer: M.endName, deepUnlocked: true, deepBest: M.deepBest || 0 }; saveMeta();
+    M = { visits: M.visits || 1, lastPlayed: 0, wrenSeen: false, ended: false, endName: '', slot3Taps: 0, prevPlayer: M.endName, deepUnlocked: true, deepBest: M.deepBest || 0, p1Done: !!M.p1Done, p1Runs: M.p1Runs || 0 }; saveMeta();
     filesPanel.classList.remove('show'); namePanel.classList.add('show'); mode = 'name'; $('nameIn').value = ''; setTimeout(() => $('nameIn').focus(), 50);
     return;
   }
   M.slot3Taps = (M.slot3Taps || 0) + 1; saveMeta(); SFX.static(0.3); flashMsg(M.slot3Taps > 2 ? 'It\'s waiting for the next player.' : 'This file is corrupted.'); openFiles(); };
 $('slot4').onclick = () => { SFX.ok(); filesPanel.classList.remove('show'); startDeep(); };
+$('slot5').onclick = () => { SFX.ok(); filesPanel.classList.remove('show'); startPart1(); };
 $('eraseBtn').onclick = () => { $('confirm').classList.add('show'); };
 $('eraseNo').onclick = () => $('confirm').classList.remove('show');
 $('eraseYes').onclick = () => {
-  try { localStorage.removeItem(KEY); localStorage.removeItem(META); localStorage.removeItem(DEEPKEY); } catch (e) {}
+  try { localStorage.removeItem(KEY); localStorage.removeItem(META); localStorage.removeItem(DEEPKEY); localStorage.removeItem('secondhand-part1-v1'); } catch (e) {}
   S = null; SAVED = null; M = { visits: 1, lastPlayed: 0, wrenSeen: false, ended: false, endName: '', slot3Taps: 0, deepUnlocked: false, deepBest: 0 }; saveMeta();
   $('confirm').classList.remove('show'); SFX.static(0.5); openFiles();
 };
@@ -1644,6 +1675,8 @@ function swingAt(hx, hy, radius) {
   }
 }
 function swing() {
+  if (S && S.part1 && P1.lock) return;
+  if (S && S.part1 && P1.bow && R(room).arena) { p1Shoot(); return; }
   if (P.swing > 0 || P.spin > 0) return;
   P.swing = SWING; P.swingId++; SFX.swing();
   P.charging = true; P.chargeT = 0; P.charged = false; P.chargeSnd = false;
@@ -1786,6 +1819,8 @@ function gotItem(it) {
     case 'hc': S.maxHearts = Math.min(6, S.maxHearts + 1); S.hearts = S.maxHearts; SFX.pick(); burst(P.x, P.y - 8, '#e8384f', 16);
       say([['', 'You got a HEART CONTAINER!'], ['', 'Your hearts went up to ' + S.maxHearts + '.']]); break;
     case 'piece': gotShard(it.area); break;
+    case 'okey': S.flags.p1key = 1; SFX.key(); burst(P.x, P.y - 8, '#e8c050', 14);
+      say([['', 'You got a small brass key, shaped like a bell.'], ['', 'It\'s warm. Like someone was just holding it.']]); break;
   }
   save();
 }
@@ -1801,6 +1836,13 @@ function gameOver() {
   S.deaths++; S.hearts = S.maxHearts;
   P.inv = 0; P.kx = P.ky = 0; P.swing = 0;
   const c = C();
+  if (S.part1) {
+    save(); P1.fight = false; P1.tags = []; P1.arrows = []; P1.seller = null; P1.lock = false;
+    mode = 'card'; cardT = 0; cardText = ['', 'not yet. it isn\'t over yet.'];
+    const cp = S.checkpoint;
+    cardDone = () => { mode = 'play'; layout(); spawnAt(cp && R(cp.room) ? cp.room : 'p1_arena', cp ? cp.x : tc(8, 8)[0], cp ? cp.y : tc(8, 8)[1]); P.dir = 1; };
+    layout(); return;
+  }
   if (S.deep) {
     const reached = S.floor || 1;
     if (reached > (M.deepBest || 0)) M.deepBest = reached;
@@ -1978,7 +2020,7 @@ let lowBeep = 0, lowBeepT = 0, prevLow = false;
 const WINDY = new Set(['highfield', 'northroad', 'eastroad', 'oldroad', 'bramble', 'graveyard', 'chapel', 'orchard', 'cavehill', 'w6a', 'w6b', 'w6c']);
 function surfaceAt(x, y) {
   const ch = tileAt(room, Math.floor(x / 16), Math.floor((y - 1) / 16)), r = R(room);
-  if (ch === '.' || ch === ',' || ch === 'w') return 'grass';
+  if (ch === '.' || ch === ',' || ch === 'w' || ch === 'k' || ch === 'N') return 'grass';
   if (ch === '=') return 'dirt';
   if (ch === 'S' || ch === 'e' || ch === 'u') return 'sand';
   if (ch === 'm') return 'marsh';
@@ -1992,9 +2034,9 @@ function soundsTick(dt) {
   const r = R(room);
   let wd = 999; for (const [wx, wy] of RC.water) { const d = Math.hypot(wx - P.x, wy - P.y); if (d < wd) wd = d; }
   const water = RC.water.length ? clamp(1 - (wd - 10) / 90, 0, 1) * (r.night ? 0.6 : 1) : 0;
-  const wind = WINDY.has(room) ? 1 : (r.gen && r.depth >= 9 ? 0.4 : 0);
+  const wind = WINDY.has(room) ? 1 : r.sky ? 0.6 : r.pal === 'sand' ? 0.35 : r.arena ? 0.3 : (r.gen && r.depth >= 9 ? 0.4 : 0);
   let hum = 0; for (const f of foes) if (f.alive && f.type === 'wisp') hum = Math.max(hum, clamp(1 - Math.hypot(f.x - P.x, f.y - P.y) / 90, 0, 1));
-  const drips = r.area === 'cave' ? 1 : (r.gen || r.area === 'hollow') ? 0.45 : 0;
+  const drips = r.area === 'cave' ? 1 : (r.gen || r.area === 'hollow') ? 0.45 : r.cam ? 0.3 : 0;
   SHA.ambient({ water, wind, hum, drips });
   for (const f of foes) {
     if (!f.alive) continue;
@@ -2024,6 +2066,8 @@ function update(dt) {
   if (mode === 'card') { cardT += dt; return; }
   if (mode === 'memory') { memoryTick(dt); return; }
   if (mode === 'ending') { endingTick(dt); fxTick(dt); return; }
+  if (S && S.part1) p1Fade(dt);
+  if (mode === 'p1cine') { p1CineTick(dt); return; }
   if (mode === 'dialog') { dialogTick(dt); return; }
   if (mode !== 'play') return;
   S.playMs += dt * 1000;
@@ -2034,6 +2078,7 @@ function update(dt) {
   let mx = 0, my = 0;
   if (held.left) mx -= 1; if (held.right) mx += 1; if (held.up) my -= 1; if (held.down) my += 1;
   if (padStyle === 'stick' && (AXIS.x || AXIS.y)) { mx = AXIS.x; my = AXIS.y; if (Math.abs(my) < Math.abs(mx) * 0.4) my = 0; else if (Math.abs(mx) < Math.abs(my) * 0.4) mx = 0; }
+  if (S.part1 && P1.lock) { mx = 0; my = 0; }
   const mag = Math.hypot(mx, my);
   if (mag > 1) { mx /= mag; my /= mag; }
   if (P.swing > 0) { P.swing -= dt; mx *= 0.15; my *= 0.15; }
@@ -2072,7 +2117,7 @@ function update(dt) {
       const tx = Math.floor((P.x + fx_ * 7) / 16), ty = Math.floor((P.y - 1 + fy_ * 6) / 16);
       const ch = tileAt(room, tx, ty);
       P.bumpT += dt;
-      if ((ch === 'L' || ch === 'Y' || ch === 'Z') && P.bumpT > 0.12) { tryOpen(tx, ty, false); P.bumpT = -0.6; }
+      if ((ch === 'L' || ch === 'Y' || ch === 'Z' || ch === 'W') && P.bumpT > 0.12) { tryOpen(tx, ty, false); P.bumpT = -0.6; }
       const b = blockOn(tx, ty);
       if (b && !b.mv && (fx_ === 0 || fy_ === 0)) {
         P.pushT += dt;
@@ -2096,20 +2141,25 @@ function update(dt) {
   }
 
   // room exits (knockback never carries you through a doorway)
+  const loopR = S.part1 && r.loop;
+  if (loopR) p1LoopEdges();
   if (P.kx || P.ky) { P.x = clamp(P.x, 4, PW - 4); P.y = clamp(P.y, 7, PH - 4); }
-  else {
+  else if (!(loopR && P1.loops >= 1)) {
     if (P.x < 3 && r.w) return enterRoom(r.w, PW - 10, P.y);
     if (P.x > PW - 3 && r.e) return enterRoom(r.e, 10, P.y);
     if (P.y < 6 && r.n) return enterRoom(r.n, P.x, PH - 6);
     if (P.y > PH - 3 && r.s) return enterRoom(r.s, P.x, 12);
   }
-  P.x = clamp(P.x, 2, PW - 2); P.y = clamp(P.y, 5, PH - 2);
+  if (!loopR) P.x = clamp(P.x, 2, PW - 2);
+  P.y = clamp(P.y, 5, PH - 2);
   // stairs / doorways
   {
     const tx = Math.floor(P.x / 16), ty = Math.floor((P.y - 3) / 16), ch = tileAt(room, tx, ty);
     if (WARP.has(ch) && fadeT <= 0.05) { doWarp(tx, ty, ch); if (room !== r.id) return; }
+    if (S.part1 && r.jumps && !P1.warping && !P1.lock) { const j = r.jumps.find(j => j.at && j.at[0] === tx && j.at[1] === ty); if (j) { S.flags.p1warp = Math.max(1, S.flags.p1warp | 0); p1Warp(j.to, j.ax, j.ay); } }
   }
 
+  if (S.part1) { p1Tick(dt); if (mode !== 'play' || room !== r.id) return; }
   foesTick(dt);
   swingHits();
   beamsTick(dt);
@@ -2179,6 +2229,864 @@ function fxTick(dt) {
   if (staticT > 0) staticT -= dt; if (flash > 0) flash -= dt; if (shake > 0) shake -= dt;
 }
 
+// ---------- PART 1 · a chapter of its own ----------
+// Played from its own file slot with its own save (secondhand-part1-v1). Rooms live in
+// world.js (area "p1"). The script below runs the beats: a dark room, a sea of clouds,
+// a gold hall, the wooden rooms and the statue of you, green warps, the sand room's door,
+// the corridor that loops, Millbrook at night, the first morning, the ring, the bell,
+// the Seller, and the fire.
+const P1KEY = 'secondhand-part1-v1';
+const CAM = { x: 0, y: 0 }, ZOOM = { k: 1, x: W / 2, y: H / 2 };
+const GLOW2 = { green: glowSprite(24, 'rgba(90,255,140,.7)'), tv: glowSprite(46, 'rgba(170,120,255,.34)'), sun: glowSprite(70, 'rgba(255,200,150,.35)'),
+  warm: glowSprite(56, 'rgba(255,196,96,.26)'), ember: glowSprite(7, 'rgba(255,150,50,.85)'), fire: glowSprite(34, 'rgba(255,120,30,.6)'), seller: glowSprite(18, 'rgba(255,230,140,.4)') };
+PAL.statueP = { h: '#8f8f8f', s: '#a9a9a9', k: '#d6d6d6', c: '#7e7e7e', p: '#6e6e6e', b: '#595959' };
+const P1 = {
+  gen: 0, timers: [], lock: false, hudA: 1, glow: 0, fade: 0, fadeTo: 0, fadeSp: 1.4, greenFlash: 0, warping: false, warpT: 0,
+  ps: null, psT: 0, looking: true, caught: 0,
+  stillT: 0, roomT: 0, loops: 0, westRun: 0, hints: {}, escaping: false,
+  title: null, morningGo: false,
+  bow: false, shootCd: 0, shootT: 0, seller: null, arrows: [], tags: [], fight: false, bell: null, bellRest: false, drop: null,
+  burn: null, fire: [], cine: null, bLab: 'ATTACK', bLabT: 4, motes: [], zoomAnim: null,
+};
+function p1After(t, fn) { P1.timers.push({ t, fn, gen: P1.gen }); }
+function p1Timers(dt) {
+  if (!P1.timers.length) return;
+  const due = [];
+  P1.timers = P1.timers.filter(x => { x.t -= dt; if (x.t <= 0) { due.push(x); return false; } return true; });
+  const gen = P1.gen;
+  for (const x of due) if (x.gen === gen) x.fn();
+}
+function p1Reset() {
+  P1.gen++; P1.timers = []; P1.lock = false; P1.ps = null; P1.psT = 0; P1.looking = true; P1.stillT = 0; P1.roomT = 0;
+  P1.arrows = []; P1.tags = []; P1.title = null; P1.warping = false; P1.zoomAnim = null; ZOOM.k = 1; P1.drop = null;
+  CAM.x = 0; CAM.y = 0;
+}
+// a spot `dist` px behind the player (or the nearest one that is free), for the statue / the key
+function p1Behind(dist, minD) {
+  const [fx_, fy_] = FV[P.dir];
+  for (let d = dist; d >= (minD || 14); d -= 6) {
+    for (const side of [0, 10, -10, 20, -20]) {
+      const x = P.x - fx_ * d + (fy_ ? side : 0), y = P.y - fy_ * d + (fx_ ? side : 0);
+      if (x < 10 || x > PW - 10 || y < 14 || y > PH - 6) continue;
+      if (!boxFree(x, y)) continue;
+      return { x, y };
+    }
+  }
+  // nothing straight behind (a wall): anywhere out of view will do
+  for (let d = dist; d >= (minD || 14); d -= 8) for (let i = 0; i < 16; i++) {
+    const a = i * Math.PI / 8, ca = Math.cos(a), sa = Math.sin(a);
+    if (ca * fx_ + sa * fy_ > 0.1) continue;
+    const x = P.x + ca * d, y = P.y + sa * d;
+    if (x < 10 || x > PW - 10 || y < 14 || y > PH - 6 || !boxFree(x, y)) continue;
+    return { x, y };
+  }
+  return null;
+}
+function p1Enter(name, rm, prevRm) {
+  p1Reset();
+  const first = !S.flags['p1in_' + name]; S.flags['p1in_' + name] = 1;
+  if (!prevRm || prevRm.name !== rm.name) { if (name !== 'p1_square' && name !== 'p1_arena') showToast(rm.name, 2200); }
+  if (rm.cam) { CAM.x = P.x - 128; CAM.y = 0; }
+  if (name === 'p1_dark') {
+    P.dir = 1;
+    if (first) p1After(0.5, () => say([['', 'It\'s dark.'], ['', 'The only light is the TV. It\'s on. You didn\'t turn it on.']]));
+    p1After(24, () => { if (room === 'p1_dark' && mode === 'play') showToast('The TV hums. Look at it with A.', 3000); });
+  } else if (name === 'p1_sky1') {
+    if (first) { flash = 0.5; staticT = 0.35; p1After(0.9, () => say([['', '...'], ['', 'You are standing on clouds. They hold you up. Barely.'], ['', 'The sky is the wrong colour for any time of day.']])); }
+  } else if (name === 'p1_hall') {
+    if (first) p1After(0.6, () => say([['', 'A hall full of gold light.'], ['', 'Every pew is empty. Nothing makes a sound. Not even you.']]));
+  } else if (name === 'p1_wood1') {
+    const st = S.flags.p1warp | 0;
+    if (st === 2) { P1.glow = 1; p1After(1.6, () => { S.flags.p1warp = 3; save(); p1Warp('p1_wood3', 7, 7); }); }
+    else if (st >= 3) { p1After(0.2, () => p1Warp('p1_wood3', 7, 7)); }
+    else if (first) p1After(0.4, () => say([['', 'Dark wooden rooms. They smell like a closet nobody opens.']]));
+  } else if (name === 'p1_wood2') {
+    if (first) p1After(0.4, () => say([['', 'The floor creaks behind you.'], ['', 'You are the only one here. Probably.']]));
+  } else if (name === 'p1_wood3') {
+    const st = S.flags.p1warp | 0;
+    if (S.flags.p1face) { p1After(0.1, () => p1Go('p1_sand', 7, 8)); }
+    else if (st <= 1) {
+      S.flags.p1warp = 1; P1.glow = 1;
+      p1After(0.7, () => say([['', 'You\'re glowing. Green, like an old screen.'], ['', 'Your hands feel very far away.']], () => p1After(1.8, () => { S.flags.p1warp = 2; save(); p1Warp('p1_wood1', 7, 5); })));
+    } else { P1.glow = 1; p1Face(); }
+  } else if (name === 'p1_sand') {
+    if (first) p1After(0.5, () => say([['', 'Sand. A whole room of it, indoors.'], ['', 'One door. It\'s beautiful. It\'s locked.']]));
+  } else if (name === 'p1_corr') {
+    P1.loops = 0; P1.westRun = 0; P1.hints = {};
+  } else if (name === 'p1_square') {
+    P1.title = { t: 0, text: 'MILLBROOK', sub: 'THE LAST NIGHT' }; P1.morningGo = false;
+    SFX.toll();
+  } else if (name === 'p1_arena') {
+    setSong(null);
+    S.checkpoint = { room: 'p1_arena', x: tc(8, 8)[0], y: tc(8, 8)[1] };
+    P.dir = 1; P1.fight = false; P1.seller = null; P1.bellRest = !!S.flags.p1bell;
+    P1.bow = !!S.flags.p1bow;
+    if (!S.flags.p1bell) p1After(0.8, p1BellCine);
+    else if (!S.flags.p1bow) p1After(0.6, p1BowDrop);
+    else p1After(0.8, p1SellerArrive);
+  }
+}
+// a plain cut (fade) to another chapter room
+function p1Go(to, tx, ty, opts) {
+  opts = opts || {};
+  const [x, y] = tc(tx, ty);
+  enterRoom(to, x, y);
+  if (opts.dir !== undefined) P.dir = opts.dir;
+  P1.fade = opts.fade === undefined ? 1 : opts.fade; P1.fadeTo = 0; P1.fadeSp = opts.sp || 1.2;
+}
+// glow green, a column of light, and you're somewhere else
+function p1Warp(to, tx, ty) {
+  if (P1.warping) return;
+  P1.warping = true; P1.warpT = 0; P1.lock = true; P1.glow = 1; SFX.warp();
+  p1After(1.15, () => {
+    P1.greenFlash = 0.7; flash = 0.15;
+    const [x, y] = tc(tx, ty);
+    enterRoom(to, x, y);
+    P.dir = 0; P1.glow = 1;
+  });
+}
+// the statue, face to face
+function p1Face() {
+  P1.lock = true; P.dir = 1; P1.glow = 0.35;
+  P1.ps = { x: P.x, y: P.y - 15, seen: true, fixed: true, moving: 0 };
+  SFX.scrape(1.2);
+  P1.zoomAnim = { t: 0 };
+}
+function p1FaceTick(dt) {
+  const z = P1.zoomAnim; if (!z) return;
+  z.t += dt;
+  const cx = P.x - CAM.x, cy = HUD + P.y - 15 - CAM.y;
+  ZOOM.x = cx; ZOOM.y = cy;
+  if (z.t < 0.5) ZOOM.k = 1;
+  else if (z.t < 1.3) { const k = (z.t - 0.5) / 0.8; ZOOM.k = 1 + 2.6 * k * k; }
+  else ZOOM.k = 3.6;
+  if (z.t >= 1.3 && !z.hit) { z.hit = true; flash = 0.35; staticT = 0.18; SFX.sting(); shake = 0.15; }
+  if (z.t >= 2.3 && !z.out) { z.out = true; P1.fadeTo = 1; P1.fadeSp = 1.6; }
+  if (z.t >= 3.2) {
+    P1.zoomAnim = null; ZOOM.k = 1; S.flags.p1face = 1; S.flags.p1warp = 4; P1.glow = 0; save();
+    p1Go('p1_sand', 7, 8, { sp: 0.7, dir: 1 });
+  }
+}
+function p1Interact(tx, ty, ch) {
+  const r = R(room);
+  if (room === 'p1_dark' && ch === 'V') {
+    say([['', 'The TV is showing a sky full of pink clouds.'], ['', 'Someone small is standing in the clouds. Red shirt. Teal hair.'], ['', 'They look up. Right at you.']], () => {
+      P1.lock = true; SFX.static(0.7); staticT = 0.7; SHA.stop();
+      p1After(0.75, () => { enterRoom('p1_sky1', tc(3, 5)[0], tc(3, 5)[1]); P.dir = 3; });
+    });
+    return true;
+  }
+  if (ch === 'W') { p1Door(true); return true; }
+  if (ch === 'P' && room === 'p1_square') { say([['', 'The plinth is empty.'], ['', 'Small stone footprints lead away from it. They\'re your size.']]); return true; }
+  return false;
+}
+function p1Door(viaA) {
+  if (S.flags.p1door) return;
+  if (S.flags.p1key) {
+    S.flags.p1door = 1; S.opened['p1_sand:door'] = 1; SFX.unlock(); SFX.hatch(); shake = 0.25;
+    burst(7 * 16 + 8, 1 * 16 + 10, '#e8c050', 18); showToast('THE DOOR OPENS'); save();
+    return;
+  }
+  if (viaA || msgCool <= 0) {
+    msgCool = 3;
+    say([['', 'An ornate door. Gold leaves, and rows of tiny brass bells that don\'t ring.'], ['', 'There\'s no keyhole. Just a small hollow, shaped like a bell.']]);
+  }
+}
+function p1Shoot() {
+  if (P1.shootCd > 0 || P1.lock) return;
+  P1.shootCd = 0.3; P1.shootT = 0.22;
+  const [fx_, fy_] = FV[P.dir];
+  P1.arrows.push({ x: P.x + fx_ * 8, y: P.y - 6 + fy_ * 8, vx: fx_ * 215, vy: fy_ * 215, t: 0 });
+  SFX.arrow();
+}
+// ---- per-frame chapter logic (mode play) ----
+function p1Tick(dt) {
+  const r = R(room);
+  P1.roomT += dt;
+  p1Timers(dt);
+  if (mode !== 'play') return;
+  const holdGlow = (S.flags.p1warp | 0) >= 1 && (S.flags.p1warp | 0) < 4 && (room === 'p1_wood1' || room === 'p1_wood3') && !P1.zoomAnim;
+  if (P1.glow > 0 && !P1.warping && !holdGlow) P1.glow = Math.max(0, P1.glow - dt * 0.6);
+  if (P1.warping) P1.warpT += dt;
+  if (P1.greenFlash > 0) P1.greenFlash -= dt * 1.6;
+  if (P1.shootCd > 0) P1.shootCd -= dt;
+  if (P1.shootT > 0) P1.shootT -= dt;
+  // the B label glitches between three words
+  P1.bLabT -= dt;
+  if (P1.burn) P1.bLab = 'RETURN';
+  else if (P1.bLabT <= 0) {
+    if (P1.bLab === 'ATTACK') { P1.bLab = Math.random() < 0.55 ? 'PUT AWAY' : 'RETURN'; P1.bLabT = rnd(0.5, 1.4); }
+    else { P1.bLab = 'ATTACK'; P1.bLabT = rnd(3, 8); }
+  }
+  // HUD fades out in the corridor
+  let hudT = 1;
+  if (r.cam && !P1.escaping) hudT = room === 'p1_corr' ? Math.max(0.04, 0.42 - P1.loops * 0.12) : 0.55;
+  P1.hudA += (hudT - P1.hudA) * Math.min(1, dt * 1.5);
+  if (r.cam) p1CorrTick(dt, r);
+  if (r.stone) p1StatueTick(dt, r);
+  if (P1.zoomAnim) p1FaceTick(dt);
+  if (room === 'p1_sand') p1SandTick(dt);
+  if (room === 'p1_sky2' && !S.flags.p1house && P.x > 56) { S.flags.p1house = 1; say([['', 'A piece of a house is hanging in the sky.'], ['', 'It looks like it was torn right out of Millbrook. The door is still shut.']]); }
+  if (room === 'p1_hall' && !P1.motes.length) for (let i = 0; i < 26; i++) P1.motes.push({ x: rnd(0, PW), y: rnd(0, PH), vx: rnd(-3, 3), vy: rnd(-5, -1), p: rnd(0, 6) });
+  if (room === 'p1_square') {
+    if (P1.title) { P1.title.t += dt; if (P1.title.t > 4.2) P1.title = null; }
+    const atCross = P.y > 4 * 16 + 4 && P.y < 6 * 16 + 14 && Math.abs(P.x - 128) < 36;
+    if (!P1.morningGo && P1.roomT > 3.5 && (atCross || P1.roomT > 16)) p1Morning();
+  }
+  if (r.arena) p1ArenaTick(dt);
+  if (P1.burn) p1BurnTick(dt);
+}
+function p1StatueTick(dt, r) {
+  if (room === 'p1_wood1' && (S.flags.p1warp | 0) >= 2) return;
+  P1.psT += dt;
+  const [fx_, fy_] = FV[P.dir];
+  if (!P1.ps) {
+    if (P1.psT > 1.3) { const p = p1Behind(78, 40); if (p) { P1.ps = { x: p.x, y: p.y, seen: false, moving: 0, gt: 0 }; SFX.scrape(0.35); } }
+    return;
+  }
+  const s = P1.ps;
+  if (s.fixed) return;
+  const dx = s.x - P.x, dy = s.y - P.y, d = Math.hypot(dx, dy) || 1;
+  const looking = (fx_ * dx + fy_ * dy) / d > 0.25;
+  if (looking && !s.seen) {
+    s.seen = true;
+    if (!S.flags.p1statueSeen) { S.flags.p1statueSeen = 1; save(); SFX.sting(); say([['', 'A statue.'], ['', 'It\'s you. Same shirt. Same hair. Carved in grey stone.'], ['', 'It has no eyes. It\'s staring anyway.']]); return; }
+  }
+  if (P1.looking && !looking && s.seen) {
+    // you turned away: it comes back closer
+    const nd = Math.max(18, d - 20), p = p1Behind(nd, 18);
+    if (p) { s.x = p.x; s.y = p.y; s.moving = 0.3; SFX.scrape(clamp(1.5 - nd / 70, 0.35, 1.3)); }
+  }
+  if (!looking) {
+    const sp = 9 * dt, ax = Math.sign(-dx) * Math.min(sp, Math.abs(dx)), ay = Math.sign(-dy) * Math.min(sp, Math.abs(dy));
+    if (!solidAt(s.x + ax, s.y - 2)) s.x += ax;
+    if (!solidAt(s.x, s.y + ay - 2)) s.y += ay;
+    s.gt -= dt; if (s.gt <= 0) { s.gt = 0.7; SFX.grind(); }
+    s.moving = 0.15;
+  }
+  if (s.moving > 0) s.moving -= dt;
+  P1.looking = looking;
+  const d2 = Math.hypot(s.x - P.x, s.y - P.y);
+  if (d2 < 11 && !looking) {
+    P1.caught++; flash = 0.3; staticT = 0.25; shake = 0.3; SFX.sting();
+    showToast('IT WAS RIGHT BEHIND YOU.', 2000);
+    const p = p1Behind(84, 50); if (p) { s.x = p.x; s.y = p.y; } else P1.ps = null;
+    s.seen = true;
+  }
+}
+function p1SandTick(dt) {
+  if (S.flags.p1key || S.flags.p1keyShown) return;
+  const moving = Math.abs(P.mdx) + Math.abs(P.mdy) > 0.01;
+  if (!moving && P.dir !== 1 && P.swing <= 0) P1.stillT += dt; else P1.stillT = 0;
+  if (P1.roomT > 38 && !P1.hints.sand) { P1.hints.sand = 1; showToast('Stand still. Look away from the door.', 3200); }
+  if (P1.stillT > 3.2) {
+    const p = p1Behind(28, 14) || { x: P.x, y: P.y + 18 };
+    S.flags.p1keyShown = 1; save();
+    items.push({ id: 'okey', uid: 'p1:okey', x: p.x, y: p.y - 4 });
+    SFX.secret(); sparks(p.x, p.y - 6, 8, '#ffe9a0');
+    showToast('...clink. Behind you.', 2400);
+  }
+}
+function p1CorrTick(dt, r) {
+  const fx_ = FV[P.dir][0];
+  const tx = P.x - 128 - fx_ * 30 + Math.sin(T * 0.33) * 16 + Math.sin(T * 0.91) * 4;
+  const ty = Math.sin(T * 0.27) * 12 + (P.y - 88) * 0.4;
+  CAM.x += (tx - CAM.x) * Math.min(1, dt * 1.1);
+  CAM.y += (ty - CAM.y) * Math.min(1, dt * 0.9);
+  if (room !== 'p1_corr' || P1.escaping) return;
+  const moving = Math.abs(P.mdx) + Math.abs(P.mdy) > 0.01;
+  if (!moving) P1.stillT += dt; else P1.stillT = 0;
+  if (P.mdx < -0.01) P1.westRun += -P.mdx; else if (P.mdx > 0.01) P1.westRun = Math.max(0, P1.westRun - P.mdx * 0.5);
+  if (P1.loops >= 2 && (P1.stillT > 3 || P1.westRun > 200)) p1Escape();
+  else if (P1.loops >= 4 && !P1.hints.a) { P1.hints.a = 1; showToast('it doesn\'t end.', 2600); }
+  else if (P1.loops >= 6 && !P1.hints.b) { P1.hints.b = 1; showToast('Stop walking. Or go back.', 3200); }
+}
+// a looping corridor: walk off one edge, arrive at the other, nothing changes (almost)
+function p1LoopEdges() {
+  if (P.x >= PW) { P.x -= PW; CAM.x -= PW; P1.loops++; if (P1.loops === 2) SFX.static(0.15); }
+  else if (P.x < 0 && P1.loops >= 1) { P.x += PW; CAM.x += PW; }
+}
+function p1Escape() {
+  P1.escaping = true; P1.lock = true;
+  SFX.static(0.6); staticT = 0.35; setSong(null);
+  p1After(0.5, () => { P1.fadeTo = 1; P1.fadeSp = 1.2; });
+  p1After(1.8, () => { S.flags.p1esc = 1; P1.escaping = false; p1Go('p1_square', 7, 8, { sp: 0.8, dir: 1 }); });
+}
+function p1Morning() {
+  P1.morningGo = true; P1.lock = true; P1.fadeTo = 1; P1.fadeSp = 0.9; setSong(null);
+  p1After(1.4, () => { mode = 'p1cine'; P1.cine = { kind: 'morning', t: 0 }; SFX.static(0.4); layout(); });
+}
+// ---- the ring ----
+function p1BellCine() {
+  P1.lock = true; P1.bell = { t: 0 };
+}
+function p1BellTick(dt) {
+  const b = P1.bell; if (!b) return;
+  b.t += dt;
+  const t = b.t;
+  if (t > 0.5 && !b.s1) { b.s1 = true; SFX.toll(); shake = 0.5; }
+  if (t > 3.3 && !b.s2) { b.s2 = true; SFX.toll(); shake = 0.6; flash = 0.12; }
+  const e = x => x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x);
+  CAM.y = -64 * (e((t - 0.4) / 1.6) - e((t - 4.4) / 1.4));
+  if (t > 6.2) { P1.bell = null; P1.bellRest = true; CAM.y = 0; S.flags.p1bell = 1; save(); p1After(0.4, p1BowDrop); }
+}
+function p1BellPose() {
+  // bottom edge of the bell (screen y) and its scale
+  const b = P1.bell;
+  if (!b) return P1.bellRest ? [HUD + 22, 2] : null;
+  const t = b.t, e = x => x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x);
+  const down = e((t - 0.3) / 2.2), up = e((t - 4.2) / 1.8);
+  const bottom = -30 + 168 * down - (168 - 52) * up;
+  return [bottom, 2.25 - 0.25 * up];
+}
+function p1BowDrop() {
+  P1.lock = true;
+  P1.drop = { t: 0, x: P.x, y: P.y - 20 };
+  SFX.tagFall();
+}
+function p1SellerArrive() {
+  P1.bow = true; P1.lock = true;
+  P1.seller = { x: 128, y: 70, h: 130, hp: 8, max: 8, t: 0, cd: 1.6, fl: 0, inv: 0, arriving: true, dying: 0 };
+  const lines = S.flags.p1met ? [['THE SELLER', 'Still here? Everything goes, {N}.']] : [['THE SELLER', 'Everything goes. All of it.'], ['THE SELLER', 'The bike. The towel. The drawings. The game.'], ['THE SELLER', 'And you, {N}. One dollar.']];
+  S.flags.p1met = 1;
+  p1After(2.2, () => say(lines, () => {
+    if (!P1.seller) return;
+    P1.seller.arriving = false; P1.fight = true; P1.lock = false; setSong('p1fight', 0.15);
+    showToast('B: SHOOT', 1600);
+  }));
+}
+function p1ArenaTick(dt) {
+  if (P1.bell) p1BellTick(dt);
+  if (P1.drop) {
+    const d = P1.drop; d.t += dt;
+    if (d.t > 0.7 && !d.landed) {
+      d.landed = true; SFX.pick(); burst(d.x, d.y, '#e8c050', 10);
+      say([['', 'Something drops out of the sky and lands at your feet.'], ['', 'A BOW. There\'s a price sticker on it: $1.'], ['', 'Press B to shoot.']], () => { P1.drop = null; S.flags.p1bow = 1; P1.bow = true; save(); p1SellerArrive(); });
+    }
+  }
+  const s = P1.seller;
+  if (s) {
+    s.t += dt; if (s.fl > 0) s.fl -= dt; if (s.inv > 0) s.inv -= dt;
+    if (s.arriving) s.h += (30 - s.h) * Math.min(1, dt * 1.3);
+    else if (s.dying) {
+      s.dying += dt; s.h += dt * 20;
+    } else if (P1.fight) {
+      const enr = s.hp <= s.max / 2;
+      const a = s.t * (enr ? 0.95 : 0.7);
+      let tx = P.x + Math.cos(a) * 46, ty = P.y - 8 + Math.sin(a * 1.3) * 30;
+      const dx = tx - 128, dy = ty - 88, dd = Math.hypot(dx, dy);
+      if (dd > 58) { tx = 128 + dx / dd * 58; ty = 88 + dy / dd * 58; }
+      s.x += (tx - s.x) * Math.min(1, dt * (enr ? 1.1 : 0.8)); s.y += (ty - s.y) * Math.min(1, dt * (enr ? 1.1 : 0.8));
+      s.h = 30 + Math.sin(s.t * 2.1) * 4;
+      s.cd -= dt;
+      if (s.cd <= 0) {
+        s.cd = enr ? 1.1 : 1.6;
+        const n = enr ? 2 : 1;
+        for (let i = 0; i < n; i++) P1.tags.push({ x: clamp(P.x + (i ? rnd(-28, 28) : rnd(-6, 6)), 60, 196), y: clamp(P.y - 3 + (i ? rnd(-20, 20) : rnd(-4, 4)), 24, 156), t: 0, warn: 0.95 });
+        SFX.tagFall();
+      }
+    }
+  }
+  // arrows
+  for (let i = P1.arrows.length - 1; i >= 0; i--) {
+    const a = P1.arrows[i]; a.t += dt;
+    if (s && P1.fight && !s.dying) {
+      const ang = Math.atan2(a.vy, a.vx), want = Math.atan2(s.y - 4 - a.y, s.x - a.x);
+      let da = want - ang; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
+      if (Math.abs(da) < 0.9) { const na = ang + clamp(da, -2.4 * dt, 2.4 * dt); a.vx = Math.cos(na) * 215; a.vy = Math.sin(na) * 215; }
+    }
+    a.x += a.vx * dt; a.y += a.vy * dt;
+    let gone = a.t > 1.3 || a.x < 2 || a.x > PW - 2 || a.y < 2 || a.y > PH - 2 || solidAt(a.x, a.y);
+    if (!gone && s && P1.fight && !s.dying && s.inv <= 0 && Math.hypot(a.x - s.x, a.y - (s.y - 4)) < 13) {
+      gone = true; s.hp--; s.fl = 0.18; s.inv = 0.15; SFX.bossHit(); shake = 0.12;
+      sparks(s.x, s.y - s.h - 6, 7, '#fff6c0');
+      if (s.hp <= 0) p1SellerDown();
+    }
+    if (gone) { if (a.t <= 1.3) sparks(a.x, a.y, 3, '#e8d8a8'); P1.arrows.splice(i, 1); }
+  }
+  // falling price tags
+  for (let i = P1.tags.length - 1; i >= 0; i--) {
+    const tg = P1.tags[i]; tg.t += dt;
+    if (tg.t >= tg.warn && !tg.landed) {
+      tg.landed = true; puff(tg.x, tg.y); puff(tg.x + 2, tg.y);
+      if (Math.hypot(tg.x - P.x, tg.y - (P.y - 2)) < 11) hurt({ x: tg.x, y: tg.y });
+    }
+    if (tg.t > tg.warn + 0.7) P1.tags.splice(i, 1);
+  }
+}
+function p1SellerDown() {
+  const s = P1.seller;
+  P1.fight = false; P1.tags = []; P1.arrows = []; s.dying = 0.001;
+  flash = 0.4; shake = 0.5; staticT = 0.2; SFX.sting(); setSong(null);
+  P1.lock = true;
+  p1After(1.4, () => say([['THE SELLER', 'Sold.']], () => p1After(0.6, p1Burn)));
+}
+// ---- the fire ----
+function p1Burn() {
+  P1.lock = true; P1.burn = { t: 0 }; P1.seller = null; SFX.fire(1);
+}
+function p1BurnTick(dt) {
+  const b = P1.burn; b.t += dt;
+  const t = b.t;
+  if (t > 1.2 && !b.f2) { b.f2 = true; SFX.fire(1.2); shake = 0.2; }
+  if (t > 2.4 && !b.f3) { b.f3 = true; SFX.fire(0.8); }
+  const rate = t < 0.8 ? 25 : t < 2.7 ? 90 : t < 3.6 ? 30 : 6;
+  const n = Math.floor(rate * dt + Math.random());
+  for (let i = 0; i < n; i++) {
+    if (t < 3.4) P1.fire.push({ x: P.x + rnd(-8, 8), y: P.y - rnd(0, t < 0.8 ? 3 : 18), vx: rnd(-8, 8), vy: rnd(-44, -20), t: 0, max: rnd(0.35, 0.8), k: 'flame' });
+    else P1.fire.push({ x: P.x + rnd(-5, 5), y: P.y - rnd(0, 14), vx: rnd(-10, 10), vy: rnd(-22, -6), t: 0, max: rnd(0.8, 1.6), k: 'ember' });
+  }
+  if (t > 3.6 && t < 4.8 && Math.random() < 0.8) P1.fire.push({ x: P.x + rnd(-5, 5), y: P.y - 14 + (t - 3.6) * 12 + rnd(-1, 1), vx: rnd(-8, 8), vy: rnd(4, 14), t: 0, max: rnd(0.6, 1), k: 'ash' });
+  for (let i = P1.fire.length - 1; i >= 0; i--) { const p = P1.fire[i]; p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; if (p.k === 'flame') p.vx *= 0.96; if (p.t > p.max) P1.fire.splice(i, 1); }
+  if (t > 5.2 && !b.out) { b.out = true; P1.fadeTo = 1; P1.fadeSp = 0.9; }
+  if (t > 6.6) { P1.burn = null; P1.fire = []; mode = 'p1cine'; P1.cine = { kind: 'end', t: 0 }; layout(); }
+}
+// ---- cinematic screens ----
+function p1CineTick(dt) {
+  const c = P1.cine; if (!c) return;
+  c.t += dt;
+  if (staticT > 0) staticT -= dt; if (flash > 0) flash -= dt; if (shake > 0) shake -= dt;
+  if (c.kind === 'morning') {
+    if (c.t > 2.6 && !c.s) { c.s = true; SFX.static(0.5); SFX.toll(); }
+    if (Math.random() < dt * 0.6 && c.t > 2.6) { staticT = 0.08; SFX.static(0.06); }
+    if (c.t > 12) p1CineA();
+  }
+}
+function p1CineA() {
+  const c = P1.cine; if (!c) return;
+  if (c.kind === 'morning' && c.t > 4.2) {
+    P1.cine = null; S.flags.p1morning = 1; mode = 'play'; layout();
+    p1Go('p1_arena', 8, 8, { sp: 0.9, dir: 1 });
+  } else if (c.kind === 'end' && c.t > 3.2) {
+    P1.cine = null; p1Finish();
+  }
+}
+function p1RenderCine() {
+  const c = P1.cine; if (!c) return;
+  g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  if (c.kind === 'morning') {
+    const full = 'THE FIRST MORNING', n = Math.max(0, Math.min(full.length, Math.floor((c.t - 0.6) * 9)));
+    const txt = full.slice(0, n);
+    g.font = 'bold 15px monospace';
+    if (c.t > 2.6 && Math.random() < 0.08) { g.fillStyle = 'rgba(255,0,90,.8)'; g.fillText(txt, W / 2 - 2, 78); g.fillStyle = 'rgba(0,230,255,.8)'; g.fillText(txt, W / 2 + 2, 78); }
+    g.fillStyle = '#f2f2f2'; g.fillText(txt, W / 2, 78);
+    if (c.t > 2.6) {
+      g.font = '9px monospace';
+      const glitch = Math.random() < 0.06;
+      const sub = glitch ? '— -1 HOURS REMAIN —' : '— 0 HOURS REMAIN —';
+      const jx = Math.random() < 0.1 ? rnd(-5, 5) : 0;
+      g.fillStyle = glitch ? '#d64541' : '#cfcfcf'; g.fillText(sub, W / 2 + jx, 104);
+      // a few torn scanlines
+      if (Math.random() < 0.25) { const y = (rnd(60, 115)) | 0; const sl = g.getImageData(0, y, W, 3); g.putImageData(sl, (rnd(-8, 8)) | 0, y); }
+    }
+    if (c.t > 4.2 && ((T * 2) | 0) % 2 === 0) { g.fillStyle = '#555'; g.font = '7px monospace'; g.fillText('PRESS A', W / 2, 160); }
+  } else if (c.kind === 'end') {
+    const a1 = clamp((c.t - 0.4) / 1, 0, 1), a2 = clamp((c.t - 1.9) / 1, 0, 1);
+    g.globalAlpha = a1; g.fillStyle = '#eee'; g.font = 'bold 16px monospace'; g.fillText('END OF PART 1', W / 2, 78);
+    g.globalAlpha = a2; g.fillStyle = '#d64541'; g.font = '10px monospace'; g.fillText('PART 2 COMING SOON', W / 2, 102);
+    g.fillStyle = '#666'; g.font = '7px monospace'; g.fillText('A GAME BY BUGGY GAMES YT', W / 2, 176);
+    g.globalAlpha = 1;
+    if (c.t > 3.2 && ((T * 2) | 0) % 2 === 0) { g.fillStyle = '#555'; g.font = '7px monospace'; g.fillText('PRESS A', W / 2, 150); }
+  }
+}
+function p1Finish() {
+  M.p1Done = true; M.p1Runs = (M.p1Runs || 0) + 1; saveMeta();
+  try { localStorage.removeItem(P1KEY); } catch (e) {}
+  S.done = true;
+  S = SAVED; P1.burn = null; P1.fade = 0; P1.fadeTo = 0; P1.hudA = 1;
+  openFiles(); flashMsg('PART 1 complete. PART 2 is coming soon.');
+}
+function startPart1() {
+  audioInit();
+  let d = null;
+  try { const raw = JSON.parse(localStorage.getItem(P1KEY) || 'null'); if (raw && raw.part1 && !raw.done) d = migrate(raw, false); } catch (e) { d = null; }
+  if (!d || !d.part1 || !R(d.room) || R(d.room).area !== 'p1') {
+    const nm = (SAVED && SAVED.name) || M.endName || M.prevPlayer || 'YOU';
+    d = newRun(nm);
+    Object.assign(d, { part1: true, room: 'p1_dark', x: tc(8, 7)[0], y: tc(8, 7)[1], hearts: 3, maxHearts: 3 });
+    d.flags.intro = true;
+  }
+  S = d; d.part1 = true; save();
+  P1.fade = 0; P1.fadeTo = 0; P1.hudA = 1; P1.glow = 0; P1.burn = null; P1.fire = []; P1.cine = null; P1.seller = null; P1.bell = null;
+  mode = 'card'; cardT = 0; cardText = ['PART 1', 'a file that was never saved'];
+  cardDone = () => { mode = 'play'; layout(); spawnAt(S.room, S.x, S.y); if (S.room === 'p1_dark') P.dir = 1; };
+  layout();
+}
+// ---- drawing ----
+const SKYC = {};
+function p1SkyLayers() {
+  if (SKYC.bg) return SKYC;
+  const bg = mkCanvas(W, PH), x = bg.getContext('2d');
+  const gr = x.createLinearGradient(0, 0, 0, PH);
+  gr.addColorStop(0, '#2c1650'); gr.addColorStop(0.35, '#5e2a6e'); gr.addColorStop(0.75, '#a8487e'); gr.addColorStop(1, '#e07a8e');
+  x.fillStyle = gr; x.fillRect(0, 0, W, PH);
+  SKYC.bg = bg; SKYC.bands = [];
+  const lerp = (a, b, k) => { const A_ = rgbOf(a), B = rgbOf(b); return '#' + hx2(A_[0] + (B[0] - A_[0]) * k) + hx2(A_[1] + (B[1] - A_[1]) * k) + hx2(A_[2] + (B[2] - A_[2]) * k); };
+  for (let row = 0; row < 10; row++) {
+    const k = row / 9, c = mkCanvas(512, 40), cx = c.getContext('2d');
+    const body = lerp('#6a3c86', '#f2a8c6', k), sh = lerp('#4a2868', '#c06c9c', k), hi = lerp('#8c5aa2', '#ffe0ee', k), rim = lerp('#7a4a92', '#ffc4dc', k);
+    const n = 15 + ((1 - k) * 8 | 0), base = 22;
+    for (let pass = 0; pass < 3; pass++) for (let i = 0; i < n; i++) {
+      const px = i * 512 / n + hash(i, row, 3) * 20, rr = (5 + k * 6) + hash(i, row, 4) * (4 + k * 5), py = base - hash(i, row, 5) * 6;
+      for (const ox of [0, -512, 512]) {
+        cx.beginPath(); cx.arc(Math.round(px + ox), Math.round(py + (pass === 0 ? 3 : 0)), Math.round(rr), 0, Math.PI * 2);
+        cx.fillStyle = pass === 0 ? sh : pass === 1 ? body : hi;
+        if (pass === 2) { cx.save(); cx.clip(); cx.beginPath(); cx.arc(Math.round(px + ox - rr * 0.35), Math.round(py - rr * 0.45), Math.round(rr * 0.7), 0, Math.PI * 2); cx.fillStyle = hi; cx.fill(); cx.restore(); continue; }
+        cx.fill();
+      }
+    }
+    cx.fillStyle = rim; for (let i = 0; i < 40; i++) cx.fillRect((hash(i, row, 9) * 512) | 0, (base - 8 + hash(row, i, 10) * 6) | 0, 2, 1);
+    cx.fillStyle = sh; cx.fillRect(0, base + 8, 512, 40);
+    SKYC.bands.push(c);
+  }
+  return SKYC;
+}
+function p1Sky() {
+  const L = p1SkyLayers();
+  g.drawImage(L.bg, 0, HUD);
+  addGlow(GLOW2.sun, 206, HUD + 18, 0.9);
+  for (let row = 0; row < 10; row++) {
+    const k = row / 9, sp = 3 + k * 14, par = 0.08 + k * 0.4;
+    const off = (((T * sp + P.x * par + row * 131) % 512) + 512) % 512;
+    const y = HUD - 24 + row * 20 + Math.round(Math.sin(T * 0.6 + row) * 1.5);
+    g.drawImage(L.bands[row], -Math.round(off), y); g.drawImage(L.bands[row], 512 - Math.round(off), y);
+  }
+}
+function cloudBankT(x, y, tx, ty) {
+  const puffs = [[4, 9, 6], [11, 8, 6], [8, 5, 6], [2, 4, 4], [13, 3, 4]];
+  for (const pass of [0, 1, 2]) for (let i = 0; i < puffs.length; i++) {
+    const [px, py, pr] = puffs[i], jx = (hash(tx, ty, i) * 4 - 2) | 0, jy = (hash(ty, tx, i) * 3 - 1) | 0;
+    g.beginPath(); g.arc(x + px + jx, y + py + jy + (pass === 0 ? 3 : 0), pr - (pass === 2 ? 2 : 0), 0, Math.PI * 2);
+    g.fillStyle = pass === 0 ? 'rgba(120,50,110,.55)' : pass === 1 ? '#f4bcd6' : '#ffe6f2';
+    if (pass === 2) { g.save(); g.clip(); g.fillStyle = '#ffe6f2'; g.fillRect(x - 4, y - 4, 24, 9 + jy); g.restore(); } else g.fill();
+  }
+}
+function pillarT(x, y, tx, ty, r) {
+  if (!(r && r.sky)) baseFor(r, x, y, tx, ty);
+  fr('#2a1c0c', x + 2, y - 4, 12, 20);
+  fr('#efe0bc', x + 3, y - 3, 10, 18); fr('#fff6dc', x + 4, y - 3, 2, 18); fr('#c8b088', x + 10, y - 3, 3, 18);
+  for (const cx of [6, 9]) fr('#d8c49a', x + cx, y - 1, 1, 14);
+  fr('#e8b830', x + 1, y - 5, 14, 3); fr('#fff0a0', x + 1, y - 5, 14, 1); fr('#a87a20', x + 1, y - 3, 14, 1);
+  fr('#c8a050', x + 2, y + 13, 12, 3); fr('#e8c060', x + 2, y + 13, 12, 1);
+}
+function pewT(x, y, tx, ty, r) {
+  baseFor(r, x, y, tx, ty);
+  const l = NB(tx - 1, ty) === 'j', rr = NB(tx + 1, ty) === 'j';
+  const x0 = l ? 0 : 1, x1 = rr ? 16 : 15;
+  fr('#1e0e06', x + x0, y + 2, x1 - x0, 12);
+  fr('#6e3018', x + x0 + (l ? 0 : 1), y + 3, x1 - x0 - (l ? 0 : 1) - (rr ? 0 : 1), 4); fr('#8e4422', x + x0 + (l ? 0 : 1), y + 3, x1 - x0 - (l ? 0 : 1) - (rr ? 0 : 1), 1);
+  fr('#7e3a1c', x + x0 + (l ? 0 : 1), y + 8, x1 - x0 - (l ? 0 : 1) - (rr ? 0 : 1), 4); fr('#a85a2e', x + x0 + (l ? 0 : 1), y + 8, x1 - x0 - (l ? 0 : 1) - (rr ? 0 : 1), 1);
+  if (!l) fr('#4a200e', x + 2, y + 12, 2, 3); if (!rr) fr('#4a200e', x + 12, y + 12, 2, 3);
+  fr('rgba(0,0,0,.25)', x, y + 14, 16, 2);
+}
+function carpetT(x, y, tx, ty, r) {
+  baseFor(r, x, y, tx, ty);
+  const n = c => c === 'N';
+  fr('#7a141c', x, y, 16, 16);
+  for (let i = 0; i < 4; i++) fr('#8e1c24', x + ((hash(tx, ty, i) * 12) | 0), y + ((hash(ty, tx, i) * 14) | 0), 3, 1);
+  if (!n(NB(tx, ty - 1))) { fr('#e8b830', x, y + 1, 16, 1); fr('#5a0c12', x, y, 16, 1); }
+  if (!n(NB(tx, ty + 1))) { fr('#e8b830', x, y + 14, 16, 1); fr('#5a0c12', x, y + 15, 16, 1); }
+  if (!n(NB(tx - 1, ty))) { fr('#e8b830', x + 1, y, 1, 16); fr('#5a0c12', x, y, 1, 16); }
+  if (!n(NB(tx + 1, ty))) { fr('#e8b830', x + 14, y, 1, 16); fr('#5a0c12', x + 15, y, 1, 16); }
+}
+function ornateDoorT(x, y, tx, ty, r, open) {
+  dwallT(x, y, tx, ty, palFor(r));
+  fr('#2a1a08', x + 1, y, 14, 16); fr('#e8b830', x + 2, y + 1, 12, 15); fr('#fff0a0', x + 2, y + 1, 12, 1);
+  if (open) { fr('#000', x + 4, y + 3, 8, 13); fr('#0a0806', x + 5, y + 2, 6, 1); fr('rgba(255,220,140,.12)', x + 4, y + 3, 1, 13); return; }
+  fr('#5a2410', x + 4, y + 3, 8, 13); fr('#7a3418', x + 4, y + 3, 8, 1); fr('#3a1408', x + 7, y + 3, 2, 13);
+  // a bell emblem and two leaves
+  fr('#e8b830', x + 6, y + 6, 4, 4); fr('#e8b830', x + 5, y + 9, 6, 1); fr('#fff0a0', x + 6, y + 6, 1, 2); fr('#3a1408', x + 7, y + 10, 2, 1);
+  fr('#c89a28', x + 4, y + 12, 2, 1); fr('#c89a28', x + 10, y + 12, 2, 1); fr('#c89a28', x + 5, y + 13, 1, 1); fr('#c89a28', x + 10, y + 13, 1, 1);
+}
+function doorwayT(x, y, tx, ty, r) {
+  dwallT(x, y, tx, ty, palFor(r));
+  fr('#0a0604', x + 2, y + 1, 12, 15); fr('#000', x + 3, y + 2, 10, 14); fr('#000', x + 4, y + 1, 8, 1);
+  fr('rgba(120,255,160,.06)', x + 3, y + 2, 10, 14);
+}
+const ARENA_COLS = ['#e83a6a', '#f2c83a', '#3ac8d8', '#8a4ae8', '#f28a3a', '#3ae08a'];
+function arenaT(x, y, tx, ty) {
+  for (let by = 0; by < 16; by += 4) for (let bx = 0; bx < 16; bx += 4) {
+    const px = tx * 16 + bx + 2, py = ty * 16 + by + 2, dx = px - 128, dy = (py - 88) * 1.05, d = Math.hypot(dx, dy);
+    let col;
+    if (d > 86) col = hash(px, py, 7) < 0.05 ? '#d8d0ff' : hash(px, py, 8) < 0.5 ? '#0c0a1c' : '#100c24';
+    else if (d > 80.5) col = d > 83.5 ? '#2a2038' : '#5a4a6a';
+    else if (d < 7) col = '#fff4c8';
+    else {
+      const ring = Math.floor(d / 10), sp = Math.floor((Math.atan2(dy, dx) + Math.PI) / (Math.PI / 8));
+      col = ARENA_COLS[(ring + (sp & 1) * 3) % ARENA_COLS.length];
+      if ((ring + sp) % 2) col = shade(col, 0.82);
+      if (d % 10 > 9) col = shade(col, 0.55);
+    }
+    g.fillStyle = col; g.fillRect(x + bx, y + by, 4, 4);
+  }
+}
+function tvScreenP1(x, y) {
+  fr('#0e0e10', x, y + 2, 16, 13); fr('#3a3a40', x + 1, y + 3, 14, 11);
+  fr('#6a3a86', x + 3, y + 5, 10, 7); fr('#c06aa0', x + 3, y + 9, 10, 3); fr('#f2a8c6', x + 3, y + 11, 10, 1);
+  const f = ((T * 2) | 0) % 2; fr('#f2a8c6', x + 4 + f, y + 8, 3, 1); fr('#ffe0ee', x + 9 - f, y + 7, 2, 1);
+  fr('#d64541', x + 8, y + 9, 1, 2); fr('#1f9e8f', x + 8, y + 8, 1, 1);
+  if (Math.random() < 0.06) fr('rgba(255,255,255,.5)', x + 3, y + 5, 10, 7);
+  fr('rgba(255,255,255,.18)', x + 3, y + 5, 10, 1); fr('#1a1a1e', x + 2, y + 14, 3, 2); fr('#1a1a1e', x + 11, y + 14, 3, 2);
+}
+// debris that floats over the clouds
+const DEBRIS = {
+  chair: [12, 13, c => { c.fillStyle = '#7a4a24'; c.fillRect(1, 0, 2, 13); c.fillRect(1, 6, 10, 2); c.fillRect(9, 6, 2, 7); c.fillRect(1, 1, 8, 1); c.fillRect(1, 3, 8, 1); c.fillStyle = '#a86a34'; c.fillRect(1, 6, 10, 1); c.fillRect(1, 0, 1, 13); }],
+  fence: [16, 10, c => { c.fillStyle = '#b98a52'; c.fillRect(0, 3, 16, 2); c.fillRect(0, 7, 16, 2); c.fillRect(2, 0, 3, 10); c.fillRect(11, 0, 3, 10); c.fillStyle = '#dcae70'; c.fillRect(0, 3, 16, 1); c.fillRect(2, 0, 1, 10); c.fillRect(11, 0, 1, 10); }],
+  frame: [10, 9, c => { c.fillStyle = '#e8b830'; c.fillRect(0, 0, 10, 9); c.fillStyle = '#2e5a90'; c.fillRect(1, 1, 8, 7); c.fillStyle = '#4f9f42'; c.fillRect(1, 5, 8, 3); c.fillStyle = '#d64541'; c.fillRect(4, 4, 1, 2); }],
+  cart: [8, 9, c => { c.fillStyle = '#8d8d92'; c.fillRect(0, 0, 8, 9); c.fillStyle = '#efe6cf'; c.fillRect(1, 2, 6, 5); c.fillStyle = '#1a1a1a'; c.fillRect(2, 4, 4, 1); c.fillStyle = '#6f6f75'; c.fillRect(0, 0, 8, 1); }],
+  mailbox: [8, 12, c => { c.fillStyle = '#6b4320'; c.fillRect(3, 5, 2, 7); c.fillStyle = '#3a6ab0'; c.fillRect(0, 0, 8, 6); c.fillStyle = '#5a8ad0'; c.fillRect(0, 0, 8, 1); c.fillStyle = '#d64541'; c.fillRect(7, 1, 1, 3); }],
+  bike: [14, 9, c => { c.fillStyle = '#2a2a30'; for (const cx of [3, 11]) { c.fillRect(cx - 3, 4, 6, 1); c.fillRect(cx - 3, 8, 6, 1); c.fillRect(cx - 3, 4, 1, 5); c.fillRect(cx + 2, 4, 1, 5); } c.fillStyle = '#d64541'; c.fillRect(3, 3, 8, 1); c.fillRect(6, 1, 1, 3); c.fillRect(10, 0, 2, 1); }],
+};
+let HOUSEC = null;
+function p1House() {
+  if (HOUSEC) return HOUSEC;
+  const c = mkCanvas(64, 46), x = c.getContext('2d'); x.imageSmoothingEnabled = false;
+  const keep = g, keepNB = NB, mm = ['RRRR', 'HDHH', 'HHHH'];
+  g = x; NB = (a, b) => (mm[b] && mm[b][a]) || '.';
+  g.save(); g.translate(0, -HUD);
+  for (let ty = 0; ty < 3; ty++) for (let tx = 0; tx < 4; tx++) { const ch = mm[ty][tx]; if (ch === 'R') roofT(tx * 16, HUD + ty * 16, tx, ty); else if (ch === 'D') doorT(tx * 16, HUD + ty * 16, tx, ty); else wallT(tx * 16, HUD + ty * 16, tx, ty, ty === 2); }
+  g.restore(); g = keep; NB = keepNB;
+  // torn bottom edge: bits of brick, a dangling pipe
+  x.globalCompositeOperation = 'destination-out';
+  for (let i = 0; i < 64; i++) { const d = 4 + ((hash(i, 3, 1) * 12) | 0); x.fillRect(i, 46 - d, 1, d); }
+  x.globalCompositeOperation = 'source-over';
+  x.fillStyle = '#5a4030'; x.fillRect(20, 36, 2, 9); x.fillStyle = '#8a6a50'; x.fillRect(20, 36, 1, 9);
+  x.fillStyle = '#9a907e'; for (let i = 0; i < 6; i++) x.fillRect((hash(i, 4, 2) * 60) | 0, 34 + ((hash(i, 5, 2) * 6) | 0), 3, 2);
+  HOUSEC = c; return c;
+}
+function p1Decor(r) {
+  if (r.arena && (P1.burn || (P1.seller && P1.seller.dying))) {
+    const k = P1.burn ? Math.min(0.62, 0.3 + P1.burn.t * 0.2) : Math.min(0.3, P1.seller.dying * 0.3);
+    g.fillStyle = 'rgba(8,2,22,' + k + ')'; g.fillRect(0, HUD, PW, PH);
+  }
+  if (r.debris) r.debris.forEach(([k, tx, ty], i) => {
+    const [w, h, fn] = DEBRIS[k], e = spr('deb_' + k, w, h, fn);
+    const bob = Math.sin(T * 0.8 + i * 1.7) * 2, x = tx * 16 + Math.sin(T * 0.21 + i) * 3, y = HUD + ty * 16 + bob;
+    g.fillStyle = 'rgba(70,24,80,.28)'; g.fillRect(Math.round(x - w / 2 + 2), Math.round(HUD + ty * 16 + 16), w - 4, 3);
+    blitSpr(e, Math.round(x - w / 2), Math.round(y - h / 2));
+  });
+  if (r.house) {
+    const hc = p1House(), bob = Math.sin(T * 0.5) * 2.5, x = Math.round(r.house[0] * 16 - 32), y = Math.round(HUD + r.house[1] * 16 - 30 + bob);
+    g.fillStyle = 'rgba(70,24,80,.25)'; g.fillRect(x + 6, HUD + r.house[1] * 16 + 26, 52, 4); g.fillRect(x + 10, HUD + r.house[1] * 16 + 25, 44, 6);
+    g.drawImage(hc, x, y);
+  }
+}
+function p1List(list, r) {
+  const s = P1.ps;
+  if (s) { drawShadow(s.x, HUD + s.y + 1); list.push({ y: s.y, f: () => drawHuman(g, PAL.statueP, s.fixed ? 0 : faceToward(s), s.x + (s.moving > 0 ? rnd(-0.6, 0.6) : 0), HUD + s.y, 0) }); }
+  const sl = P1.seller;
+  if (sl) {
+    if (!sl.dying) { g.globalAlpha = 0.45; drawShadow(sl.x, HUD + sl.y + 1); g.globalAlpha = 1; }
+    list.push({ y: sl.y + 200, f: () => p1DrawSeller(sl) });
+  }
+  if (P1.drop) {
+    const d = P1.drop, k = Math.min(1, d.t / 0.7), y = d.y - (1 - k) * 90;
+    list.push({ y: d.y, f: () => { drawShadow(d.x, HUD + d.y + 3); p1DrawBow(d.x, HUD + y, 0, true); } });
+  }
+}
+function p1DrawSeller(sl) {
+  const x = sl.x, y = HUD + sl.y - sl.h + Math.sin(sl.t * 2.3) * 1.5;
+  const a = sl.dying ? Math.max(0, 1 - sl.dying / 1.2) : 1;
+  if (a <= 0) return;
+  addGlow(GLOW2.seller, x, y - 7, 0.5 * a);
+  const flick = sl.dying && Math.random() < 0.4;
+  if (!flick) drawHuman(g, PAL.noface2, 0, x, y, 0, a, false, sl.fl > 0 && ((T * 30) | 0) % 2 === 0);
+  // a price tag on a string
+  g.globalAlpha = a; fr('#e8e0d0', x + 5, y - 6, 1, 6); fr('#3a2a10', x + 3, y, 6, 4); fr('#ffd23f', x + 4, y, 4, 3); fr('#3a2a10', x + 5, y + 1, 1, 1); g.globalAlpha = 1;
+}
+function p1DrawBow(x, y, dir, flat) {
+  // a little wooden bow; flat = lying on the ground
+  if (flat) { fr('#3a2410', x - 6, y - 2, 13, 4); fr('#9a6a38', x - 5, y - 1, 11, 2); fr('#e8e0d0', x - 5, y + 1, 11, 1); fr('#ffd23f', x + 3, y - 3, 3, 2); return; }
+  const v = dir <= 1;
+  if (v) { fr('#3a2410', x - 6, y - 1, 13, 3); fr('#9a6a38', x - 5, y - 1, 11, 2); fr('#e8e0d0', x - 4, y + (dir === 0 ? 2 : -2), 9, 1); }
+  else { fr('#3a2410', x - 1, y - 6, 3, 13); fr('#9a6a38', x - 1, y - 5, 2, 11); fr('#e8e0d0', x + (dir === 3 ? -2 : 2), y - 4, 1, 9); }
+}
+function p1PlayerFx() {
+  const px = P.x, py = HUD + P.y;
+  if (P1.bow && P1.shootT > 0) { const [fx_, fy_] = FV[P.dir]; p1DrawBow(px + fx_ * 8, py - 6 + fy_ * 6, P.dir); }
+  if (P1.glow > 0) {
+    addGlow(GLOW2.green, px, py - 7, P1.glow * (0.75 + Math.sin(T * 13) * 0.2));
+    const e = humanSprite(PAL.player, P.dir, P.step | 0);
+    if (!e.g) e.g = (() => { const w = mkCanvas(e.c.width, e.c.height), x = w.getContext('2d'); x.drawImage(e.c, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = '#7dff9a'; x.fillRect(0, 0, w.width, w.height); return w; })();
+    g.globalCompositeOperation = 'lighter'; g.globalAlpha = P1.glow * (0.45 + 0.25 * Math.sin(T * 17));
+    g.drawImage(e.g, Math.round(px - 5) - 1, Math.round(py - 13) - 1 + (P.step === 2 || P.step === 4 ? -1 : 0));
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+    for (let i = 0; i < 3; i++) { const yy = (py - ((T * 30 + i * 7) % 20)) | 0; fr('rgba(160,255,180,' + (0.6 * P1.glow) + ')', (px - 5 + hash(i, (T * 4) | 0, 2) * 10) | 0, yy, 1, 2); }
+  }
+  if (P1.warping && P1.warpT > 0.55) {
+    const k = Math.min(1, (P1.warpT - 0.55) / 0.5), w = 2 + k * 8;
+    g.globalCompositeOperation = 'lighter';
+    g.fillStyle = 'rgba(120,255,160,' + (0.25 + k * 0.5) + ')'; g.fillRect(Math.round(px - w / 2), 0, Math.round(w), py);
+    g.fillStyle = 'rgba(230,255,235,' + (k * 0.6) + ')'; g.fillRect(Math.round(px - w / 4), 0, Math.max(1, Math.round(w / 2)), py);
+    g.globalCompositeOperation = 'source-over';
+  }
+}
+// the player, burning away
+function p1DrawBurnPlayer() {
+  const b = P1.burn, t = b.t, px = P.x, py = HUD + P.y;
+  const e = humanSprite(PAL.player, P.dir, 0);
+  const tint = (key, col) => { if (!e[key]) { const w = mkCanvas(e.c.width, e.c.height), x = w.getContext('2d'); x.drawImage(e.c, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = col; x.fillRect(0, 0, w.width, w.height); e[key] = w; } return e[key]; };
+  const X = Math.round(px - 5) - 1, Y = Math.round(py - 13) - 1;
+  if (t < 3.4) {
+    g.drawImage(e.c, X, Y);
+    g.globalAlpha = clamp(t / 2.2, 0, 1) * (0.75 + Math.random() * 0.25); g.drawImage(tint('bO', '#ff7a1a'), X, Y);
+    g.globalAlpha = clamp((t - 1.6) / 1.6, 0, 1); g.drawImage(tint('bK', '#1a1210'), X, Y); g.globalAlpha = 1;
+  } else {
+    // ash: crumbles from the top down
+    const k = clamp((t - 3.6) / 1.2, 0, 1), cut = Math.round(16 * k);
+    if (cut < 16) g.drawImage(tint('bA', '#5a5652'), 0, cut, e.c.width, e.c.height - cut, X, Y + cut, e.c.width, e.c.height - cut);
+  }
+  if (t < 3.6) addGlow(GLOW2.fire, px, py - 8, Math.min(1, t * 0.9) * (0.8 + Math.random() * 0.2));
+  // stylized flame tongues, rising and falling
+  const I = t < 0.8 ? t / 0.8 * 0.45 : t < 2.8 ? 1 : Math.max(0, 1 - (t - 2.8) / 0.8);
+  if (I > 0.02) for (let i = -3; i <= 3; i++) {
+    const h = Math.max(0, (13 - Math.abs(i) * 2.6 + Math.sin(T * 19 + i * 1.7) * 3 + Math.sin(T * 31 + i) * 2) * I);
+    if (h < 1) continue;
+    const fx0 = Math.round(px + i * 2 - 1), base = Math.round(py + 1);
+    fr('#b8200c', fx0, base - h - 2, 3, h + 2);
+    fr('#f06018', fx0, base - h * 0.8 - 1, 3, h * 0.8 + 1);
+    fr('#ffb43a', fx0 + 1, base - h * 0.55, 1, h * 0.55);
+    if (h > 7) fr('#fff2b0', fx0 + 1, base - h * 0.3, 1, h * 0.3);
+  }
+}
+function p1DrawFire() {
+  for (const p of P1.fire) {
+    const k = 1 - p.t / p.max, x = p.x | 0, y = (HUD + p.y) | 0;
+    if (p.k === 'flame') {
+      const col = k > 0.7 ? '#fff2a0' : k > 0.45 ? '#ffb030' : k > 0.2 ? '#e8501a' : '#6a1a08';
+      const s = k > 0.6 ? 4 : k > 0.3 ? 3 : 2;
+      g.fillStyle = col; g.fillRect(x - (s >> 1), y - s, s, s + 1);
+    } else if (p.k === 'ember') { addGlow(GLOW2.ember, x, y, k * 0.8); g.fillStyle = k > 0.5 ? '#ffd060' : '#e85a1a'; g.fillRect(x, y, 1, 1); }
+    else { g.globalAlpha = k; g.fillStyle = '#7a7470'; g.fillRect(x, y, 2, 1); g.globalAlpha = 1; }
+  }
+}
+function p1Over(r) {
+  // corridor: little things that change from loop to loop
+  if (r.loop) {
+    const k0 = Math.floor(CAM.x / PW);
+    for (let k = k0; k <= k0 + 1; k++) {
+      const ox = k * PW;
+      if (P1.loops >= 2) pfText(g, '017', ox + 150, HUD + 3 * 16 + 6, '#7a2a2a');
+      if (P1.loops >= 3) { g.fillStyle = 'rgba(200,190,170,.35)'; for (const [hx, hy] of [[0, 0], [2, -1], [4, 0], [1, 2], [3, 2]]) g.fillRect(ox + 60 + hx, HUD + 3 * 16 + 9 + hy, 1, 2); }
+      if (P1.loops >= 4) { g.globalAlpha = 0.5; drawHuman(g, PAL.statueP, 2, ox + 236, HUD + 5 * 16 + 12, 0); g.globalAlpha = 1; }
+    }
+  }
+  for (const a of P1.arrows) {
+    const ang = Math.atan2(a.vy, a.vx), ca = Math.cos(ang), sa = Math.sin(ang), x = a.x, y = HUD + a.y;
+    g.fillStyle = '#3a2410'; for (let i = -7; i <= 0; i++) g.fillRect(Math.round(x + ca * i), Math.round(y + sa * i), 1, 1);
+    g.fillStyle = '#d8d8e0'; g.fillRect(Math.round(x + ca), Math.round(y + sa), 2, 2);
+    g.fillStyle = '#f2f2f2'; for (const s_ of [-1, 1]) g.fillRect(Math.round(x - ca * 7 - sa * s_), Math.round(y - sa * 7 + ca * s_), 1, 1);
+  }
+  for (const tg of P1.tags) {
+    const x = tg.x | 0, y = (HUD + tg.y) | 0;
+    if (tg.t < tg.warn) {
+      const k = tg.t / tg.warn, w = 4 + k * 8;
+      g.fillStyle = 'rgba(20,6,30,' + (0.25 + k * 0.35) + ')'; g.fillRect(Math.round(x - w / 2), y, Math.round(w), 3);
+      const fy = y - (1 - k) * 110 - 6;
+      fr('#3a2a10', x - 3, fy - 1, 7, 6); fr('#ffd23f', x - 2, fy, 5, 4); fr('#3a2a10', x - 1, fy + 1, 1, 1); fr('#d64541', x + 1, fy + 2, 1, 1);
+    } else { g.globalAlpha = Math.max(0, 1 - (tg.t - tg.warn) / 0.7); fr('#ffd23f', x - 3, y - 2, 6, 4); pfText(g, '1', x - 1, y - 2, '#3a2a10'); g.globalAlpha = 1; }
+  }
+  if (P1.burn || P1.fire.length) p1DrawFire();
+  if (room === 'p1_hall') {
+    g.globalCompositeOperation = 'lighter';
+    for (const m of P1.motes) { m.x += m.vx * 0.016; m.y += m.vy * 0.016; if (m.y < 0) { m.y = PH; m.x = rnd(0, PW); } g.fillStyle = 'rgba(255,220,150,' + (0.35 + 0.3 * Math.sin(T * 2 + m.p)) + ')'; g.fillRect(m.x | 0, (HUD + m.y) | 0, 1, 1); }
+    g.globalCompositeOperation = 'source-over';
+  }
+}
+let SHAFTS = null, BELLC = null;
+function p1Shafts() {
+  if (SHAFTS) return SHAFTS;
+  const c = mkCanvas(W, PH), x = c.getContext('2d');
+  for (const [sx, w] of [[36, 22], [104, 30], [176, 22]]) {
+    const gr = x.createLinearGradient(0, 0, 0, PH); gr.addColorStop(0, 'rgba(255,214,130,.30)'); gr.addColorStop(1, 'rgba(255,214,130,0)');
+    x.fillStyle = gr; x.beginPath(); x.moveTo(sx, 0); x.lineTo(sx + w, 0); x.lineTo(sx + w + 46, PH); x.lineTo(sx + 30, PH); x.closePath(); x.fill();
+  }
+  SHAFTS = c; return c;
+}
+// the bell: cracked, cratered, with dents that make a face
+function p1BellSprite() {
+  if (BELLC) return BELLC;
+  const w = 70, h = 64, c = mkCanvas(w, h), x = c.getContext('2d');
+  const half = yy => { if (yy < 4) return 0; if (yy < 8) return 4 + (yy - 4) * 0.5; const k = (yy - 8) / (h - 8); return 12 + k * 14 + Math.pow(k, 5) * 10; };
+  for (let yy = 0; yy < h; yy++) {
+    const hw = half(yy);
+    for (let xx = 0; xx < w; xx++) {
+      const dx = xx + 0.5 - w / 2;
+      if (yy < 4) { if (Math.abs(dx) < 4 && Math.abs(dx) > 1.5) { x.fillStyle = '#3a2a14'; x.fillRect(xx, yy, 1, 1); } continue; }
+      if (Math.abs(dx) > hw) continue;
+      const k = dx / (hw || 1);
+      let col = k < -0.55 ? '#c0904a' : k < -0.15 ? '#9a6e34' : k < 0.45 ? '#7a5426' : '#4a3214';
+      if (Math.abs(dx) > hw - 1 || yy === h - 1) col = '#20140a';
+      if (yy >= h - 4 && Math.abs(dx) <= hw - 1) col = yy === h - 4 ? '#d8a860' : '#5a3c1a';
+      if (hash(xx, yy, 21) < 0.08) col = shade(col, 0.82);
+      x.fillStyle = col; x.fillRect(xx, yy, 1, 1);
+    }
+  }
+  const dent = (cx, cy, r) => {
+    for (let yy = -r; yy <= r; yy++) for (let xx = -r; xx <= r; xx++) {
+      const d = Math.hypot(xx, yy); if (d > r) continue;
+      x.fillStyle = d > r - 1 ? (yy < 0 ? '#2a1a0a' : '#c89a58') : (yy + xx < 0 ? '#3a260e' : '#5a3e1c');
+      x.fillRect(cx + xx, cy + yy, 1, 1);
+    }
+  };
+  // eyes, a long open mouth, and pockmarks
+  for (let i = 0; i < 7; i++) dent(14 + ((hash(i, 1, 30) * 42) | 0), 12 + ((hash(i, 2, 30) * 44) | 0), 1);
+  // two deep eye-dents with a pale glint, a nose, and a long sagging mouth
+  for (const ex of [24, 46]) { dent(ex, 28, 5); x.fillStyle = '#0e0804'; x.fillRect(ex - 2, 26, 5, 5); x.fillStyle = '#e8d8b0'; x.fillRect(ex - 1, 27, 1, 1); }
+  dent(35, 37, 2);
+  for (const [mx, my] of [[21, 47], [26, 49], [31, 50], [36, 50], [41, 50], [46, 49], [51, 47]]) dent(mx, my, 3);
+  x.fillStyle = '#0e0804'; for (const [mx, my] of [[26, 49], [31, 50], [36, 50], [41, 50], [46, 49]]) x.fillRect(mx - 1, my, 3, 1);
+  // cracks
+  x.fillStyle = '#140c04';
+  let cx = 50, cy = 12; for (let i = 0; i < 26; i++) { x.fillRect(cx, cy, 1, 2); cx += hash(i, 4, 31) < 0.5 ? -1 : 0; cy += 2; if (cy > h - 3) break; }
+  cx = 18; cy = 20; for (let i = 0; i < 12; i++) { x.fillRect(cx, cy, 2, 1); cx += 1; cy += hash(i, 5, 31) < 0.6 ? 2 : 1; }
+  BELLC = c; return c;
+}
+function p1Screen(r) {
+  if (room === 'p1_hall') {
+    g.globalCompositeOperation = 'lighter';
+    g.globalAlpha = 0.85 + Math.sin(T * 0.7) * 0.1; g.drawImage(p1Shafts(), 0, HUD); g.globalAlpha = 1;
+    for (const [tx, ty] of [[1, 1], [14, 1], [1, 4], [14, 4], [1, 6], [14, 6], [1, 9], [14, 9]]) addGlow(GLOW2.warm, tx * 16 + 8, HUD + ty * 16, 0.55);
+    g.fillStyle = 'rgba(255,170,70,.07)'; g.fillRect(0, HUD, W, PH);
+    g.globalCompositeOperation = 'source-over';
+  }
+  if (r.tv && r.dark) { const [tx, ty] = r.tv; addGlow(GLOW2.tv, tx * 16 + 8 - CAM.x, HUD + ty * 16 + 10 - CAM.y, 0.8 + Math.sin(T * 9) * 0.1 + (Math.random() < 0.05 ? 0.3 : 0)); }
+  if (r.dark && P1.glow > 0) addGlow(GLOW2.green, P.x - CAM.x, HUD + P.y - 7 - CAM.y, P1.glow * 0.8);
+  if (r.arena) {
+    const bp = p1BellPose();
+    if (bp) {
+      const bc = p1BellSprite(), sc = bp[1], bw = bc.width * sc, bh = bc.height * sc;
+      const sway = Math.sin(T * 0.6) * 3;
+      g.drawImage(bc, Math.round(W / 2 - bw / 2 + sway), Math.round(bp[0] - bh), Math.round(bw), Math.round(bh));
+      if (P1.bell) { g.fillStyle = 'rgba(10,0,20,' + Math.min(0.35, P1.bell.t * 0.2) * (P1.bell.t > 4.4 ? Math.max(0, 1 - (P1.bell.t - 4.4)) : 1) + ')'; g.fillRect(0, HUD, W, PH); g.drawImage(bc, Math.round(W / 2 - bw / 2 + sway), Math.round(bp[0] - bh), Math.round(bw), Math.round(bh)); }
+    }
+    const s = P1.seller;
+    if (s && (P1.fight || s.dying)) {
+      const bx = W / 2 - 54, by = HUD + PH - 11;
+      fr('#000', bx - 1, by - 1, 112, 9); fr('#6a5a3a', bx, by, 110, 7); fr('#1a0a10', bx + 1, by + 1, 108, 5);
+      fr('#5a4a10', bx + 10, by + 2, 97, 3); fr('#ffd23f', bx + 10, by + 2, (97 * Math.max(0, s.hp) / s.max) | 0, 3); fr('#fff0a0', bx + 10, by + 2, (97 * Math.max(0, s.hp) / s.max) | 0, 1);
+      fr('#ffd23f', bx + 2, by + 1, 6, 5); fr('#3a2a10', bx + 4, by + 2, 1, 3);
+    }
+  }
+  if (P1.title) {
+    const t = P1.title.t, a = t < 0.8 ? t / 0.8 : t > 3.4 ? Math.max(0, 1 - (t - 3.4) / 0.8) : 1;
+    g.globalAlpha = a * 0.55; g.fillStyle = '#000'; g.fillRect(0, HUD + 44, W, 46); g.globalAlpha = a;
+    g.fillStyle = '#e8b830'; g.fillRect(40, HUD + 50, W - 80, 1); g.fillRect(40, HUD + 84, W - 80, 1);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = '#f2ecdc'; g.font = 'bold 16px monospace'; g.fillText(P1.title.text, W / 2, HUD + 64);
+    g.fillStyle = '#a8a0bc'; g.font = '7px monospace'; g.fillText(P1.title.sub, W / 2, HUD + 78);
+    g.globalAlpha = 1;
+  }
+  if (P1.greenFlash > 0) { g.fillStyle = 'rgba(110,255,150,' + Math.min(0.7, P1.greenFlash) + ')'; g.fillRect(0, HUD, W, PH); }
+}
+function p1Fade(dt) {
+  if (P1.fade < P1.fadeTo) P1.fade = Math.min(P1.fadeTo, P1.fade + dt * P1.fadeSp);
+  else if (P1.fade > P1.fadeTo) P1.fade = Math.max(P1.fadeTo, P1.fade - dt * P1.fadeSp);
+}
+
+const bLabEl = document.getElementById('bLab');
+
 // ---------- render ----------
 function render() {
   g.setTransform(1, 0, 0, 1, 0, 0);
@@ -2188,11 +3096,13 @@ function render() {
   if (mode === 'card') { renderCard(); blit(); return; }
   if (mode === 'over') { blit(); return; }
   if (mode === 'memory') { renderMemory(); blit(); return; }
+  if (mode === 'p1cine') { p1RenderCine(); blit(); return; }
   if (!S || !R(room)) { blit(); return; }
   renderWorld();
   if (mode === 'ending') renderEndingFx();
   if (mode === 'map') renderMap();
   if (fadeT > 0) { g.fillStyle = 'rgba(0,0,0,' + Math.min(1, fadeT / 0.35) + ')'; g.fillRect(0, HUD, W, PH); }
+  if (S.part1 && P1.fade > 0) { g.fillStyle = 'rgba(0,0,0,' + Math.min(1, P1.fade) + ')'; g.fillRect(0, 0, W, H); }
   blit();
 }
 function renderWorld() {
@@ -2200,8 +3110,12 @@ function renderWorld() {
   ensureRoomLayer();
   let ox = 0, oy = 0;
   if (shake > 0) { ox = rnd(-2, 2) | 0; oy = rnd(-2, 2) | 0; }
-  g.save(); g.translate(ox, oy);
-  drawRoomLayer(r);
+  const p1 = !!S.part1;
+  if (p1 && r.sky) p1Sky();
+  g.save(); g.translate(ox - Math.round(CAM.x), oy - Math.round(CAM.y));
+  if (r.loop) { const k0 = Math.floor(CAM.x / PW); for (let k = k0; k <= k0 + 1; k++) g.drawImage(RC.base, k * PW, 0); }
+  else drawRoomLayer(r);
+  if (p1) p1Decor(r);
   if (flick) drawTile(flick.ch, flick.tx, flick.ty, T, r);
   for (const b of blocks) drawBlock(b, r);
   if (room === 'village' && c === 0) drawHuman(g, PAL.statue, 0, 6 * 16 + 8, HUD + 7 * 16 + 9, 0);
@@ -2241,11 +3155,13 @@ function renderWorld() {
   if (statue) list.push({ y: statue.y, f: () => drawHuman(g, c >= 3 || (mode === 'ending') ? PAL.statueR : PAL.statue, statue.fixed ? 0 : faceToward(statue), statue.x + (statue.moving > 0 ? rnd(-0.6, 0.6) : 0), HUD + statue.y, 0) });
   for (const f of foes) if (f.type === 'crawler' || f.type === 'mimic' || f.boss) list.push({ y: f.y + 4, f: () => drawFoe(f) });
   if (!(P.inv > 0 && ((T * 20) | 0) % 2)) list.push({ y: P.y, f: () => drawPlayer(pAlpha) });
+  if (p1) p1List(list, r);
   list.sort((a, b) => a.y - b.y).forEach(o => o.f());
   for (const f of foes) if (f.type === 'wisp' || f.type === 'bat') drawFoe(f);
   for (const b of beams) drawBeam(b);
   for (const s of shots) drawShot(s);
   drawFx();
+  if (p1) p1Over(r);
   if (RC.torches.length) drawTorches();
   g.restore();
   if (RC.shade) g.drawImage(RC.shade, 0, 0);
@@ -2259,6 +3175,7 @@ function renderWorld() {
     for (const s of shots) drawShot(s);
     for (const it of items) if (it.id !== 'heart') drawItem(it, true);
   }
+  if (p1) p1Screen(r);
   // boss health bar
   const boss = foes.find(f => f.boss && f.alive);
   if (boss) {
@@ -2301,6 +3218,11 @@ const DUSK = { graveyard: 'rgba(40,16,70,.26)', cavehill: 'rgba(30,20,50,.16)', 
 const DIRANG = [Math.PI / 2, -Math.PI / 2, Math.PI, 0];
 function dirFromAng(a) { a = ((a % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2); const q = Math.round(a / (Math.PI / 2)) % 4; return [3, 0, 2, 1][q]; }
 function drawPlayer(alpha) {
+  if (S.part1 && P1.burn) return p1DrawBurnPlayer();
+  drawPlayer0(alpha);
+  if (S.part1) p1PlayerFx();
+}
+function drawPlayer0(alpha) {
   const y = mode === 'ending' && ending.phase >= 2 ? P.y + Math.min(10, ending.t * 2.5) : P.y;
   if (P.spin > 0) {
     const k = 1 - P.spin / SPIN, ang = P.spinA + k * Math.PI * 2.15;
@@ -2535,7 +3457,8 @@ const ITEM_SPR = {
   heart: c => { const rows = ['.xx.xx.', 'xxxxxxx', 'xxxxxxx', '.xxxxx.', '..xxx..', '...x...']; rows.forEach((row, j) => { for (let i = 0; i < 7; i++) if (row[i] === 'x') { c.fillStyle = (j === 1 && i === 1) || (j === 0 && i === 1) ? '#ffc0c8' : (i >= 5 || j >= 4) ? '#b0182c' : '#e8384f'; c.fillRect(i, j, 1, 1); } }); },
   heartE: c => { const rows = ['.xx.xx.', 'xxxxxxx', 'xxxxxxx', '.xxxxx.', '..xxx..', '...x...']; rows.forEach((row, j) => { for (let i = 0; i < 7; i++) if (row[i] === 'x') { c.fillStyle = '#3a1420'; c.fillRect(i, j, 1, 1); } }); },
 };
-const ITEM_SZ = { key: [10, 6], fkey: [10, 6], page: [8, 10], lantern: [8, 11], hc: [9, 8], piece: [7, 10], heart: [7, 6], heartE: [7, 6] };
+ITEM_SPR.okey = c => { c.fillStyle = '#e8b830'; c.fillRect(1, 0, 4, 1); c.fillRect(0, 1, 6, 4); c.fillRect(6, 2, 5, 2); c.fillRect(8, 4, 1, 2); c.fillRect(10, 4, 1, 2); c.fillStyle = '#fff0a0'; c.fillRect(1, 1, 2, 2); c.fillRect(6, 2, 4, 1); c.fillStyle = '#8a6414'; c.fillRect(2, 4, 2, 1); };
+const ITEM_SZ = { okey: [11, 6], key: [10, 6], fkey: [10, 6], page: [8, 10], lantern: [8, 11], hc: [9, 8], piece: [7, 10], heart: [7, 6], heartE: [7, 6] };
 function itemSpr(id) { const [w, h] = ITEM_SZ[id]; return spr('it_' + id, w, h, ITEM_SPR[id]); }
 function drawItem(it, glow) {
   const bob = Math.sin(T * 4) * 1.5;
@@ -2566,12 +3489,19 @@ function drawFx() {
 }
 function renderDark() {
   dg.globalCompositeOperation = 'source-over';
-  dg.fillStyle = '#000'; dg.fillRect(0, 0, PW, PH);
+  if (R(room).ambient) dg.clearRect(0, 0, PW, PH);
+  dg.fillStyle = R(room).ambient ? 'rgba(0,0,0,' + R(room).ambient + ')' : '#000'; dg.fillRect(0, 0, PW, PH);
   dg.globalCompositeOperation = 'destination-out';
-  const rad = (S.lantern ? 74 : 36) + Math.sin(T * 6) * 1.5;
-  const gr = dg.createRadialGradient(P.x, P.y - 6, 6, P.x, P.y - 6, rad);
+  const r = R(room), cx = P.x - CAM.x, cy = P.y - 6 - CAM.y;
+  const rad = (r.light ? r.light + (S.part1 ? P1.glow * 22 : 0) : (S.lantern ? 74 : 36)) + Math.sin(T * 6) * 1.5;
+  const gr = dg.createRadialGradient(cx, cy, 6, cx, cy, rad);
   gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(0.7, 'rgba(0,0,0,.85)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
-  dg.fillStyle = gr; dg.beginPath(); dg.arc(P.x, P.y - 6, rad, 0, Math.PI * 2); dg.fill();
+  dg.fillStyle = gr; dg.beginPath(); dg.arc(cx, cy, rad, 0, Math.PI * 2); dg.fill();
+  if (r.tv) {
+    const tx = r.tv[0] * 16 + 8 - CAM.x, ty = r.tv[1] * 16 + 10 - CAM.y, tr = 44 + Math.sin(T * 9) * 2 + (Math.random() < 0.05 ? 6 : 0);
+    const g2 = dg.createRadialGradient(tx, ty, 4, tx, ty, tr); g2.addColorStop(0, 'rgba(0,0,0,.95)'); g2.addColorStop(1, 'rgba(0,0,0,0)');
+    dg.fillStyle = g2; dg.beginPath(); dg.arc(tx, ty, tr, 0, Math.PI * 2); dg.fill();
+  }
   // beams light the dark a little
   for (const b of beams) { dg.beginPath(); dg.arc(b.x, b.y, 14, 0, Math.PI * 2); dg.fillStyle = 'rgba(0,0,0,.7)'; dg.fill(); }
   g.drawImage(dark, 0, HUD);
@@ -2607,7 +3537,7 @@ function renderHud() {
   let label = S.name;
   if (visC() >= 2 && Math.sin(T * 0.9) > 0.97) label = 'WREN';
   if (r.depth >= 5 && Math.random() < 0.004 * r.depth) label = timeStr();
-  const key = [S.hearts, S.maxHearts, r.dungeon ? (S.keys[r.area] || 0) : '-', r.gen ? (S.fkeys[r.area] ? 1 : 0) : '-', c, label, r.depth || 0, S.deep ? 1 : 0, r.depth >= 7 && Math.random() < 0.03 ? 1 : 0].join('|');
+  const key = [S.hearts, S.maxHearts, r.dungeon ? (S.keys[r.area] || 0) : '-', r.gen ? (S.fkeys[r.area] ? 1 : 0) : '-', c, label, r.depth || 0, S.deep ? 1 : 0, S.part1 ? P1.bLab : '', r.depth >= 7 && Math.random() < 0.03 ? 1 : 0].join('|');
   if (key !== hudKey) {
     hudKey = key;
     const h = HUDG, keepG = g; g = h;
@@ -2628,6 +3558,18 @@ function renderHud() {
     // name
     const lw = pfWidth(label);
     pfText(h, label, Math.round(W / 2 + 8 - lw / 2), 5, '#a8a0bc', '#000');
+    if (S.part1) {
+      // PART 1: a B label that can't decide, and a page counter stuck at 017
+      const bx = hx;
+      h.fillStyle = '#000'; h.fillRect(bx, 3, 9, 9); h.fillStyle = '#b8282f'; h.fillRect(bx + 1, 4, 7, 7); h.fillStyle = '#e8484f'; h.fillRect(bx + 1, 4, 7, 1);
+      pfText(h, 'B', bx + 3, 5, '#ffffff');
+      pfText(h, P1.bLab, bx + 12, 5, P1.bLab === 'ATTACK' ? '#f0e6c8' : '#d64541', '#000');
+      frameBox(h, W - 32, 2, 29, 11);
+      blitSpr(itemSpr('page'), W - 29, 3);
+      pfText(h, '017', W - 19, 5, '#f0e6c8', '#000');
+      if (bLabEl) bLabEl.textContent = 'B · ' + P1.bLab;
+      g = keepG;
+    } else {
     // bell pieces
     frameBox(h, W - 40, 2, 37, 11);
     for (let i = 0; i < 3; i++) {
@@ -2640,8 +3582,10 @@ function renderHud() {
       pfText(h, s, W - 45 - pfWidth(s), 5, red ? '#d64541' : '#9fd3ff', '#000');
     }
     g = keepG;
+    }
   }
-  g.drawImage(HUDC, 0, 0);
+  if (S.part1 && P1.hudA < 0.99) { g.globalAlpha = Math.max(0, P1.hudA); g.drawImage(HUDC, 0, 0); g.globalAlpha = 1; if (P1.hudA < 0.6) return; }
+  else g.drawImage(HUDC, 0, 0);
   // the last heart pulses when you're low
   if (lowHP() && S.hearts > 0) { const a = 0.35 + 0.35 * Math.sin(T * 9); g.globalAlpha = a; g.fillStyle = '#ffffff'; const i = S.hearts - 1; g.fillRect(5 + i * 8, 6, 7, 3); g.globalAlpha = 1; }
 }
@@ -2650,7 +3594,7 @@ function renderMap() {
   g.fillStyle = 'rgba(0,0,0,.86)'; g.fillRect(0, 0, W, H);
   g.textAlign = 'center'; g.textBaseline = 'middle';
   const r = R(room), area = r.area;
-  const title = area === 'over' ? 'MILLBROOK VALLEY' : r.dungeon ? r.name : r.gen ? (S.deep ? 'THE DEEP · B' : 'THE UNDERNEATH · B') + r.depth : area === 'void' ? corrupt('???', 0.5) : r.name;
+  const title = area === 'p1' ? 'PART 1' : area === 'over' ? 'MILLBROOK VALLEY' : r.dungeon ? r.name : r.gen ? (S.deep ? 'THE DEEP · B' : 'THE UNDERNEATH · B') + r.depth : area === 'void' ? corrupt('???', 0.5) : r.name;
   g.fillStyle = '#ddd'; g.font = 'bold 10px monospace'; g.fillText(title, W / 2, 11);
   let rooms;
   if (r.gen) rooms = Object.values(SHW.genFloor(S.seed, r.depth, S.deep).rooms);
@@ -2698,6 +3642,7 @@ function renderMap() {
   g.font = '7px monospace'; g.fillStyle = '#bbb';
   let info = 'PIECES ' + C() + '/3   PAGES ' + pagesFound() + '/8   HEARTS ' + S.maxHearts;
   if (r.dungeon) info = 'KEYS ' + (S.keys[area] || 0) + '   PIECES ' + C() + '/3   ' + (S.lantern ? 'LANTERN ✓' : '');
+  if (area === 'p1') info = 'PAGES 017   HEARTS ' + S.maxHearts;
   if (r.gen) info = 'FLOOR KEY ' + (S.fkeys[area] ? '✓' : '—') + '   ROOMS ' + shown.length + '/' + rooms.length + '   DEEPEST B' + (S.floor || r.depth);
   g.fillText(info, W / 2, H - 22);
   g.fillStyle = '#777'; g.fillText('SELECT or B to close', W / 2, H - 10);
@@ -2796,6 +3741,9 @@ function blit_() {
       const off = Math.random() < 0.3 ? rnd(-10, 10) | 0 : 0;
       out.drawImage(buf, 0, y, W, 8, off, y, W, 8);
     }
+  } else if (ZOOM.k > 1.001) {
+    const sw = W / ZOOM.k, sh = H / ZOOM.k;
+    out.drawImage(buf, clamp(ZOOM.x - sw / 2, 0, W - sw), clamp(ZOOM.y - sh / 2, 0, H - sh), sw, sh, 0, 0, W, H);
   } else out.drawImage(buf, 0, 0);
   // corruption drains the colour (a cheap saturation blend instead of a canvas filter)
   if (c >= 2) {
@@ -2843,6 +3791,7 @@ window.__sh = {
   enterRoom: (r, x, y) => enterRoom(r, x, y), tileAt: (r, x, y) => tileAt(r, x, y), goFloor: (f, w) => goFloor(f, w || 'start'),
   setA: v => { aHeld = !!v; }, noStatue: () => { statue = null; }, damage: n => { P.inv = 0; hurt({ x: P.x, y: P.y + 1 }, n || 1); },
   get beams() { return beams; }, get fx() { return fx; }, lowHP: () => lowHP(), bDown: () => bDown(), bUp: () => bUp(), mkFoe: (t, x, y) => { const f = mkFoe(t, x, y); foes.push(f); return f; },
-  get SPR() { return SPR.size; }, PERF, get audio() { return SHA; },
+  get SPR() { return SPR.size; }, PERF, get audio() { return SHA; }, get staticT() { return staticT; },
+  P1, CAM, ZOOM, startPart1: () => startPart1(), get partOne() { return !!(S && S.part1); },
 };
 })();

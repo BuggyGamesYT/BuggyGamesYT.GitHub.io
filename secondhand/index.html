@@ -86,6 +86,10 @@
   body.stick #pad { display: none; }
   body.stick #stickZone { display: block; }
   body.touch:not(.portrait) #pad, body.touch:not(.portrait) #abtns, body.touch:not(.portrait) #ss { opacity: .75; }
+  #bLab { position: absolute; left: 0; bottom: 80px; width: 72px; text-align: center; font-size: 10px; letter-spacing: 1px; color: #f2ecdc; text-shadow: 0 1px 0 #000; display: none; white-space: nowrap; }
+  body.p1.touch #bLab { display: block; }
+  #slot5 { border-color: #4a2f52; }
+  #slot5 b { color: #c86cff; }
   .credit { font-size: 11px; color: #555; margin-top: 14px; }
 </style>
 </head>
@@ -98,7 +102,7 @@
   <div id="pad"><i class="h"></i><i class="v"></i><i class="c"></i></div>
   <div id="stickZone"><div id="stickHint"></div></div>
   <div id="stickBase"><div id="stickKnob"></div></div>
-  <div id="abtns"><button id="btnB">B</button><button id="btnA">A</button></div>
+  <div id="abtns"><span id="bLab"></span><button id="btnB">B</button><button id="btnA">A</button></div>
   <div id="ss"><button id="btnSelect">SELECT</button><button id="btnStart">START</button></div>
 </div>
 
@@ -115,6 +119,7 @@
   <button class="slot" id="slot2"></button>
   <button class="slot" id="slot3"></button>
   <button class="slot" id="slot4" style="display:none"></button>
+  <button class="slot" id="slot5"></button>
   <div id="filesMsg"></div>
   <div class="row"><button class="b alt" id="helpBtn">Controls</button><button class="b alt" id="eraseBtn">Erase cartridge</button></div>
   <div id="confirm"><p>Erase every file on the cartridge?</p><div class="row"><button class="b" id="eraseYes">Erase</button><button class="b alt" id="eraseNo">Keep</button></div></div>
@@ -151,6 +156,7 @@
     <li>To change areas, walk off the edge of the screen where a path or opening leads out.</li>
     <li>Find the three bell pieces in the Hollow, the Cave and the Old Mill. Keys open locked doors. Walk into blocks to push them.</li>
     <li>Don't let the statue get behind you.</li>
+    <li>PART 1 is a separate chapter on its own file. Playing it never touches your main game.</li>
   </ul>
   <div class="row"><button class="b alt padOpt">Phone controls: D-pad</button></div>
   <button class="b" id="helpClose">OK</button>

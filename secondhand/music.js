@@ -145,6 +145,31 @@ const VOID_M = J(
   '. . . . . . . .', '. . . . e6 - - -', '- - - - . . . .', '. . . . . . . .',
   '. . . . . . . .', '. . . . . . f6 -', '- - - - - - . .', '. . . . . . . .');
 
+
+// ---------------- PART 1 ----------------
+const P1DIM_M = J(
+  '. . . . . . . .', 'a5 - - - - - . .', '. . . . . . . .', 'f5 - - - e5 - - -',
+  '. . . . . . . .', '. . d6 - - - . .', '. . . . . . . .', 'c#6 - - - - - - -');
+const P1SKY_A = J(
+  'e5 - g5 - c6 -', 'b5 - - - g5 -', 'a5 - f5 - d5 -', 'e5 - - - . .',
+  'e5 - g5 - c6 -', 'd6 - - - b5 -', 'c6 - a5 - f#5 -', 'g5 - - - . .');
+const P1SKY_B = J(
+  'a5 - c6 - e6 -', 'd6 - - - b5 -', 'c6 - a5 - e5 -', 'f5 - - - . .',
+  'e5 - d5 - c5 -', 'b4 - - - g4 -', 'c5 - eb5 - f#5 -', 'g5 - - - - -');
+const P1HALL_M = J(
+  'c5 - - - - - - -', 'e5 - - - - - - -', 'd5 - - - - - - -', 'c5 - - - - - . .',
+  'f5 - - - - - - -', 'e5 - - - - - - -', 'd5 - - - f5 - - -', 'e5 - - - - - . .');
+const P1CORR_M = J('e5 . g5 . b5 . . .', 'a#5 . . . g5 . . .', 'e5 . g5 . c6 . . .', 'b5 . . . d#5 . . .');
+const P1NIGHT_M = J(
+  'e5 - - - a5 - - -', 'c6 - - - a5 - - -', 'g5 - - - e5 - - -', 'd5 - - - - - . .',
+  'e5 - - - a5 - - -', 'c6 - - - d6 - - -', 'b5 - - - g#5 - - -', 'e5 - - - - - . .');
+const P1FIGHT_A = J(
+  'f#5 . a5 . c#6 . a5 .', 'f#5 . c#6 - b5 . a5 .', 'd5 . f#5 . a5 . d6 .', 'e6 - - - b5 - g#5 -',
+  'f#5 . a5 . c#6 . e6 .', 'f#6 - e6 - c#6 - a5 -', 'd6 . a5 . f#5 . d6 .', 'c#6 - - - e#5 - g#5 -');
+const P1FIGHT_B = J(
+  'b5 . d6 . f#6 . e6 d6', 'c#6 - - - a5 - f#5 -', 'g5 . b5 . d6 . c#6 b5', 'a#5 - - - c#6 - e6 -',
+  'f#6 . d6 . b5 . d6 .', 'f#6 . d6 . a5 . f#5 .', 'g#5 . b5 . e6 . d6 .', 'c#6 - - - . . . .');
+
 const SONGS = {
   title: { bpm: 80, spb: 8, chords: J(TITLE_CA, TITLE_CB, TITLE_CA, TITLE_CB2), lead: J(TITLE_A, TITLE_B, TITLE_A, TITLE_B2),
     lw: 'tri', lv: 0.16, hm: 'arp', hp: '0 1 2 3 2 1 0 1', hw: 'p12', hv: 0.035, ho: 4, bp: 'R - - - 5 - - -', bw: 'tri', bv: 0.16, dp: '. . . . h . . .', dv: 0.25, calm: 1 },
@@ -176,6 +201,18 @@ const SONGS = {
     lw: 'p12', lv: 0.06, hm: 'arp', hp: '0 2 1 3 0 2 1 3', hw: 'tri', hv: 0.05, ho: 4, bp: 'R . . R . R . .', bw: 'tri', bv: 0.2, dp: 'k . s k . k s .', dv: 0.3, glitch: 1 },
   mem: { bpm: 70, spb: 8, chords: J(VIL_CA, VIL_CB, VIL_CA, VIL_CB2), lead: J(VIL_A, VIL_B, VIL_A, VIL_B2),
     lw: 'box', lv: 0.09, hm: 'pad', hw: 'sine', hv: 0.025, ho: 4, bp: 'R - - - - - - -', bw: 'sine', bv: 0.16, dp: null, calm: 1 },
+  p1dim: { bpm: 54, spb: 8, chords: 'Dm Dm Bb Bb Dm Dm Gm A', lead: P1DIM_M,
+    lw: 'sine', lv: 0.05, hm: 'pad', hw: 'sine', hv: 0.03, ho: 3, bp: 'R - - - - - - -', bw: 'sine', bv: 0.2, dp: null },
+  p1sky: { bpm: 84, spb: 6, chords: J('C G F C C G Am/D G', 'Am G Am F C G Cm G'), lead: J(P1SKY_A, P1SKY_B),
+    lw: 'box', lv: 0.09, hm: 'arp', hp: '0 1 2 1 2 1', hw: 'sine', hv: 0.028, ho: 4, bp: 'R - - 5 - -', bw: 'sine', bv: 0.13, dp: null, calm: 1 },
+  p1hall: { bpm: 60, spb: 8, chords: 'F Am Bb F Dm Am Bb C', lead: P1HALL_M,
+    lw: 'choir', lv: 0.045, hm: 'pad', hw: 'choir', hv: 0.026, ho: 4, bp: 'R - - - - - - -', bw: 'sine', bv: 0.1, dp: null, calm: 1 },
+  p1corr: { bpm: 92, spb: 8, chords: 'Em Em C B', lead: P1CORR_M,
+    lw: 'tri', lv: 0.1, hm: 'arp', hp: '0 2 1 2 0 2 1 2', hw: 'p12', hv: 0.02, ho: 4, bp: 'R . . . R . . .', bw: 'tri', bv: 0.15, dp: 'k . . . . . . .', dv: 0.2 },
+  p1night: { bpm: 66, spb: 8, chords: 'Am F C G Am F E E', lead: P1NIGHT_M,
+    lw: 'tri', lv: 0.1, hm: 'pad', hw: 'sine', hv: 0.025, ho: 4, bp: 'R - - - 5 - - -', bw: 'tri', bv: 0.13, dp: '. . . . h . . .', dv: 0.12, calm: 1 },
+  p1fight: { bpm: 156, spb: 8, chords: J('F#m F#m D E F#m F#m D C#', 'Bm F#m G C# Bm D E C#'), lead: J(P1FIGHT_A, P1FIGHT_B),
+    lw: 'sq', lv: 0.05, hm: 'arp', hp: '0 1 2 3 0 1 2 3', hw: 'p12', hv: 0.025, ho: 4, bp: 'R O R O R O R O', bw: 'tri', bv: 0.2, dp: 'k h s h k k s h', dv: 0.32 },
   void: { bpm: 60, spb: 8, chords: 'Am Am Bb Am Am Am Bb Am Am Am Bb Am Am Am Bb Am', lead: J(VOID_M, VOID_M),
     lw: 'sine', lv: 0.05, hm: 'pad', hw: 'sine', hv: 0.03, ho: 3, bp: 'R - - - - - - -', bw: 'sine', bv: 0.2, dp: null },
 };
