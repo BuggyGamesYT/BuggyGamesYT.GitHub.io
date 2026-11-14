@@ -89,6 +89,7 @@
   #endPanel .box { border-color: #2a3a4a; }
   #perf { position: fixed; right: 6px; bottom: 4px; font-size: 10px; color: #555; z-index: 5; pointer-events: none; }
 </style>
+<script>window.addEventListener('error',function(e){try{var d=document.getElementById('errBox');if(!d){d=document.createElement('div');d.id='errBox';d.style.cssText='position:fixed;left:4px;right:4px;top:4px;z-index:99;color:#f66;font:11px monospace;background:rgba(0,0,0,.7);padding:4px;pointer-events:none;white-space:pre-wrap';document.body.appendChild(d);}d.textContent+=(e.message||'error')+' @'+(e.lineno||'')+'\n';}catch(_){}});</script>
 </head>
 <body>
 <canvas id="cv"></canvas>

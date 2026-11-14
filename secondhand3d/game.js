@@ -40,7 +40,15 @@ function corrupt(s, amt) { if (!amt) return s; let o = ''; for (const ch of s) o
 
 // ---------------------------------------------------------------- renderer
 const cv = $('cv');
-const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: !QS.has('noaa'), powerPreference: 'high-performance', stencil: false });
+const MOBILE = matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad/i.test(navigator.userAgent);
+const CRASHES = (() => { try { return parseInt(localStorage.getItem('secondhand3d-gpucrash') || '0', 10) || 0; } catch (e) { return 0; } })();
+const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: !QS.has('noaa') && !MOBILE, powerPreference: 'default', stencil: false });
+// if the phone's GPU drops the canvas, save, step quality down and reload straight back into the game
+cv.addEventListener('webglcontextlost', e => {
+  e.preventDefault();
+  try { localStorage.setItem('secondhand3d-gpucrash', String(CRASHES + 1)); if (S && mode !== 'files' && !S.done) { save(); localStorage.setItem('secondhand3d-resume', '1'); } } catch (er) {}
+  setTimeout(() => location.reload(), 300);
+}, false);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.12;
@@ -290,10 +298,11 @@ const sky = new THREE.Mesh(new THREE.SphereGeometry(200, 32, 16), new THREE.Shad
 sky.frustumCulled = false; sky.renderOrder = -10; scene.add(sky);
 
 // ---------------------------------------------------------------- resolution + adaptive quality
-const QL = [{ pr: 0.75, sh: 0 }, { pr: 1.0, sh: 1024 }, { pr: 1.25, sh: 1024 }, { pr: 1.5, sh: 2048 }, { pr: 1.75, sh: 2048 }, { pr: 2.0, sh: 2048 }];
+const QL = [{ pr: 0.75, sh: 0 }, { pr: 1.0, sh: 1024 }, { pr: 1.25, sh: 1024 }, { pr: 1.5, sh: 1024 }, { pr: 1.75, sh: 2048 }, { pr: 2.0, sh: 2048 }];
 const DPR = window.devicePixelRatio || 1;
-let qMax = DPR >= 2 ? 4 : DPR >= 1.5 ? 3 : 2;   // 1.75 on phones, 1.5 / 1.25 on low-dpr screens
-let qLevel = Math.min(qMax, 3);
+let qMax = MOBILE ? 3 : DPR >= 2 ? 4 : DPR >= 1.5 ? 3 : 2;
+let qLevel = MOBILE ? 2 : Math.min(qMax, 3);
+if (CRASHES > 0) { qMax = Math.max(0, qMax - CRASHES); qLevel = Math.max(0, Math.min(qLevel, qMax) - CRASHES); }
 const qLock = QS.has('q') ? clamp(parseInt(QS.get('q'), 10) || 0, 0, QL.length - 1) : -1;
 if (qLock >= 0) { qLevel = qLock; qMax = qLock; }
 let qAcc = 0, qN = 0, qCool = 2, qGood = 0;
@@ -1668,6 +1677,7 @@ async function goArea(id, spawn, o = {}) {
   if (area) area.foes = [];
   area = AREAS[id]; area.group.visible = true;
   area.group.add(P.mesh);
+  if (!area.warm) { area.warm = true; try { await renderer.compileAsync(scene, cam); } catch (e) {} }
   const sp = typeof spawn === 'object' ? spawn : area.spawns[spawn] || area.spawns.start || { x: 0, z: 0, yaw: 0 };
   P.x = sp.x; P.z = sp.z; P.face = (sp.yaw || 0) + Math.PI; camYaw = sp.yaw || 0; camPitch = 0.34;
   P.kbt = 0; P.swingT = P.spinT = -1; P.inv = 0;
@@ -2483,6 +2493,9 @@ function frame(ts) {
   if (fpsShow) { fpsAcc += dt; fpsN++; if (fpsAcc > 0.5) { perfEl.textContent = Math.round(fpsN / fpsAcc) + ' fps · ' + renderer.info.render.calls + ' calls · ' + Math.round(renderer.info.render.triangles / 1000) + 'k tris · ' + VIEW_W + 'x' + VIEW_H + ' · q' + qLevel; fpsAcc = 0; fpsN = 0; } }
 }
 requestAnimationFrame(frame);
+// a good few minutes of play clears the crash step-down
+setTimeout(() => { try { if (mode === 'play') localStorage.removeItem('secondhand3d-gpucrash'); } catch (e) {} }, 180000);
+try { if (localStorage.getItem('secondhand3d-resume') === '1') { localStorage.removeItem('secondhand3d-resume'); if (SAVED && !SAVED.done) { S = SAVED; setTimeout(() => startGame(false), 50); } } } catch (e) {}
 document.addEventListener('visibilitychange', () => { if (document.hidden) { if (mode === 'play' && !dlg) openPause(); if (S && mode !== 'files') save(); } });
 layoutUI();
 // test hook
