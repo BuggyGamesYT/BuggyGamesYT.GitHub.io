@@ -42,7 +42,17 @@ function corrupt(s, amt) { if (!amt) return s; let o = ''; for (const ch of s) o
 const cv = $('cv');
 const MOBILE = matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad/i.test(navigator.userAgent);
 const CRASHES = (() => { try { return parseInt(localStorage.getItem('secondhand3d-gpucrash') || '0', 10) || 0; } catch (e) { return 0; } })();
-const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: !QS.has('noaa') && !MOBILE, powerPreference: 'default', stencil: false });
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: !QS.has('noaa') && !MOBILE, powerPreference: 'default', stencil: false }); }
+catch (e) {
+  try { renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: false, powerPreference: 'low-power', stencil: false, depth: true }); }
+  catch (e2) {
+    const d = document.createElement('div');
+    d.style.cssText = 'position:fixed;inset:0;z-index:999;background:#000;color:#ddd;font:15px monospace;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;line-height:1.6';
+    d.innerHTML = 'The browser turned 3D off after a graphics crash.<br><br>Fully close the browser (swipe it away from recent apps), reopen it, and load this page again.';
+    document.body.appendChild(d); throw e2;
+  }
+}
 // if the phone's GPU drops the canvas, save, step quality down and reload straight back into the game
 cv.addEventListener('webglcontextlost', e => {
   e.preventDefault();
@@ -301,7 +311,7 @@ sky.frustumCulled = false; sky.renderOrder = -10; scene.add(sky);
 const QL = [{ pr: 0.75, sh: 0 }, { pr: 1.0, sh: 1024 }, { pr: 1.25, sh: 1024 }, { pr: 1.5, sh: 1024 }, { pr: 1.75, sh: 2048 }, { pr: 2.0, sh: 2048 }];
 const DPR = window.devicePixelRatio || 1;
 let qMax = MOBILE ? 3 : DPR >= 2 ? 4 : DPR >= 1.5 ? 3 : 2;
-let qLevel = MOBILE ? 2 : Math.min(qMax, 3);
+let qLevel = MOBILE ? 1 : Math.min(qMax, 3);
 if (CRASHES > 0) { qMax = Math.max(0, qMax - CRASHES); qLevel = Math.max(0, Math.min(qLevel, qMax) - CRASHES); }
 const qLock = QS.has('q') ? clamp(parseInt(QS.get('q'), 10) || 0, 0, QL.length - 1) : -1;
 if (qLock >= 0) { qLevel = qLock; qMax = qLock; }
