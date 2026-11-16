@@ -195,7 +195,7 @@ function newGame() {
   gateOpen = false;
   S = {
     px: START.x, py: START.y, aim: -Math.PI / 2, aimTarget: -Math.PI / 2, aimHold: 0,
-    lightOn: true, sim: !BAT.real || document.getElementById('simChk').checked,
+    lightOn: true, sim: !BAT.real || !document.getElementById('realChk').checked,
     simLevel: 0.64, fuses: FUSES0.map(f => ({ ...f, got: false })), carried: 0, inserted: 0,
     notes: NOTES0.map(n => ({ ...n, read: false })),
     ck: { x: START.x, y: START.y }, visitedCk: new Set(),
@@ -207,7 +207,7 @@ function newGame() {
     zombies: (zMode ? ZSPAWN : []).map(([x, y]) => ({ x, y, hp: 2, face: Math.random() * 6.28, path: [], repath: Math.random(), state: 'wander', groan: 2 + Math.random() * 5, ph: Math.random() * 6, stun: 0 }))
   };
   showMsg('Where... is everyone?', 3);
-  setTimeout(() => S && showMsg(S.sim ? "Can't read your real battery here. Using the phone's own battery." : 'Your light runs on your real battery: ' + pct() + '%.', 4), 3200);
+  setTimeout(() => S && showMsg(S.sim ? 'Your light runs on the in-game battery. Find charging spots.' : 'Your light runs on your real battery: ' + pct() + '%.', 4), 3200);
 }
 function level() { return S.sim ? S.simLevel : BAT.level; }
 function pct() { return Math.max(0, Math.min(100, Math.round(level() * 100))); }
@@ -615,8 +615,8 @@ function end(kind) {
 function refreshBatInfo() {
   const seen = JSON.parse(localStorage.getItem('lb_ends') || '[]');
   const ends = seen.length ? ` Endings found: ${seen.length}/3.` : '';
-  if (BAT.real) { $('batInfo').innerHTML = `Your battery: <b>${Math.round(BAT.level * 100)}%</b>${BAT.charging ? ' (charging)' : ''}. That's how bright your light will be.${ends}`; $('simRow').style.display = ''; }
-  else { $('batInfo').innerHTML = `Can't read your real battery here, so you'll get an in-game battery that drains.${ends}`; $('simRow').style.display = 'none'; }
+  if (BAT.real) { $('batInfo').innerHTML = $('realChk').checked ? `Using your real battery: <b>${Math.round(BAT.level * 100)}%</b>${BAT.charging ? ' (charging)' : ''}. That's how bright your light will be.${ends}` : `Your light runs on an in-game battery that drains. Want a challenge? Use your real battery (${Math.round(BAT.level * 100)}%).${ends}`; $('simRow').style.display = ''; }
+  else { $('batInfo').innerHTML = `Your light runs on an in-game battery that drains.${ends}`; $('simRow').style.display = 'none'; }
 }
 const startGame = z => { zMode = z; document.getElementById('touch').classList.toggle('zm', z); audio(); if (AC && AC.state === 'suspended') AC.resume(); newGame(); mode = 'play'; panel(null); };
 $('zStartBtn').onclick = () => startGame(true);
@@ -641,6 +641,8 @@ function frame(now) {
   render();
   requestAnimationFrame(frame);
 }
+$('realChk').checked = localStorage.getItem('lb_real') === '1';
+$('realChk').onchange = () => { localStorage.setItem('lb_real', $('realChk').checked ? '1' : '0'); refreshBatInfo(); };
 initBattery().then(refreshBatInfo);
 setInterval(() => { if (mode === 'title') refreshBatInfo(); }, 2000);
 requestAnimationFrame(frame);
